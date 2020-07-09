@@ -1,48 +1,47 @@
 `timescale 1ns / 1ps
 `include "wishbone.vh"
 // Simple WISHBONE interconnect.
-// Because we have bucketloads of register space available the address spaces are all hardcoded.
+// We have 4MB of register space.
+// The full space of 24 LAB4Ds is 192 kB, or 48k qwords,
+// which fits in 64k of space, so we have buckets of space.
 module wbc_intercon(
 		input clk_i,
 		input rst_i,
 		// Masters.
-		`WBS_NAMED_PORT(pcic, 32, 20, 4),
-		`WBS_NAMED_PORT(turfc, 32, 20, 4),
-		`WBS_NAMED_PORT(hkmc, 32, 20, 4),
-		`WBS_NAMED_PORT(wbvio, 32, 20, 4),
-		`WBS_NAMED_PORT(dmad, 32, 20, 4),
-		// Slaves.
-		`WBM_NAMED_PORT(s5_id_ctrl, 32, 16, 4),
+		`WBS_NAMED_PORT(bmc, 32, 20, 4),
+		`WBS_NAMED_PORT(spic, 32, 20, 4),
+		`WBS_NAMED_PORT(pciec, 32, 20, 4),
+		// Slaves. 
+		`WBM_NAMED_PORT(rad_id_ctrl, 32, 16, 4),
 		`WBM_NAMED_PORT(l4_ctrl, 32, 16, 4),
 		`WBM_NAMED_PORT(l4_ram, 32, 16, 4),
-		`WBM_NAMED_PORT(rfp, 32, 16, 4),
-		`WBM_NAMED_PORT(dma, 32, 16, 4),
+		`WBM_NAMED_PORT(trig, 32, 16, 4),
+		`WBM_NAMED_PORT(scal, 32, 16, 4),
 		output [70:0] debug_o
     );
 
-	localparam [19:0] S5_ID_CTRL_BASE = 20'h00000;
-	localparam [19:0] S5_ID_CTRL_MASK = 20'h8FFFF;	// match x000: 0x00000-0x0FFFF, shadowed at 0x80000-0x8FFFF
-	localparam [19:0] L4_CTRL_BASE    = 20'h10000;
-	localparam [19:0] L4_CTRL_MASK	 = 20'h8FFFF;	// match x001: 0x10000-0x1FFFF, shadowed at 0x90000-0x9FFFF
-	localparam [19:0] L4_RAM_BASE		 = 20'h20000;	
-	localparam [19:0] L4_RAM_MASK		 = 20'h8FFFF;	// match x010: 0x20000-0x2FFFF, shadowed at 0xA0000-0xAFFFF
-	localparam [19:0] RFP_BASE			 = 20'h30000;
-	localparam [19:0]	RFP_MASK			 = 20'h8FFFF;	// match	x011: 0x30000-0x3FFFF, shadowed at 0xB0000-0xBFFFF
-	localparam [19:0] DMA_BASE			 = 20'h40000;
-	localparam [19:0] DMA_MASK			 = 20'hBFFFF;	// match x1xx: 0x40000-0x7FFFF, shadowed at 0xC0000-0xFFFFF
-	wire pcic_gnt;
-	wire turfc_gnt;
-	wire hkmc_gnt;
-	wire wbvio_gnt;
-	wire dmad_gnt;
+	localparam [19:0] RAD_ID_CTRL_BASE     = 20'h00000;
+	localparam [19:0] RAD_ID_CTRL_MASK     = 20'h8FFFF;	// match x000: 0x00000-0x0FFFF, shadowed at 0x80000-0x8FFFF
+	localparam [19:0] L4_CTRL_BASE         = 20'h10000;
+	localparam [19:0] L4_CTRL_MASK	       = 20'h8FFFF;	// match x001: 0x10000-0x1FFFF, shadowed at 0x90000-0x9FFFF
+	localparam [19:0] L4_RAM_BASE		   = 20'h20000;	
+	localparam [19:0] L4_RAM_MASK		   = 20'h8FFFF;	// match x010: 0x20000-0x2FFFF, shadowed at 0xA0000-0xAFFFF
+	localparam [19:0] TRIG_BASE			   = 20'h30000;
+	localparam [19:0] TRIG_MASK			   = 20'h8FFFF;	// match x011: 0x30000-0x3FFFF, shadowed at 0xB0000-0xBFFFF
+	localparam [19:0] SCAL_BASE			   = 20'h40000;
+	localparam [19:0] SCAL_MASK			   = 20'hBFFFF;	// match x1xx: 0x40000-0x7FFFF, shadowed at 0xC0000-0xFFFFF
+
+	wire bmc_gnt;
+	wire spic_gnt;
+	wire pciec_gnt;
 	// Simple round robin arbiter for right now. Stolen from asic-world.
 //	arbiter u_arbiter(.clk(clk_i),.rst(rst_i),
-//							.req0(pcic_cyc_i),.gnt0(pcic_gnt),
-//							.req1(turfc_cyc_i),.gnt1(turfc_gnt),
-//							.req2(hkmc_cyc_i),.gnt2(hkmc_gnt),
+//							.req0(bmc_cyc_i),.gnt0(bmc_gnt),
+//							.req1(spic_cyc_i),.gnt1(spic_gnt),
+//							.req2(pciec_cyc_i),.gnt2(pciec_gnt),
 //							.req3(wbvio_cyc_i),.gnt3(wbvio_gnt));							
 	// Switch to expandable round-robin arbiter
-	localparam NUM_MASTERS = 5;
+	localparam NUM_MASTERS = 3;
 	wire [NUM_MASTERS-1:0] requests;
 	wire [NUM_MASTERS-1:0] grants;
 	wire [NUM_MASTERS-1:0] strobes;
@@ -64,11 +63,9 @@ module wbc_intercon(
 		assign x``_rty_o = rtys[ y ];     \
 		assign x``_dat_o = muxed_dat_i
 	
-	`MASTER(pcic, 0);
-	`MASTER(turfc, 1);
-	`MASTER(hkmc, 2);
-	`MASTER(wbvio, 3);
-	`MASTER(dmad, 4);
+	`MASTER(bmc, 0);
+	`MASTER(spic, 1);
+	`MASTER(pciec, 2);
 	// The multiplexer is harder to code automatically because it needs to be done in a define. 
 	
 	wishbone_arbiter #(.NUM_MASTERS(NUM_MASTERS)) u_arbiter(.rst_i(rst_i),.clk_i(clk_i),.cyc_i(requests),.gnt_o(grants));
@@ -87,26 +84,18 @@ module wbc_intercon(
 	reg [31:0] dat_o;
 	reg [3:0] sel;
 	always @(*) begin
-		if (turfc_gnt) begin 
-			adr <= turfc_adr_i;
-			dat_o <= turfc_dat_i;
-			sel <= turfc_sel_i;
-		end else if (hkmc_gnt) begin
-			adr <= hkmc_adr_i;
-			dat_o <= hkmc_dat_i;
-			sel <= hkmc_sel_i;
-		end else if (wbvio_gnt) begin
-			adr <= wbvio_adr_i;
-			dat_o <= wbvio_dat_i;
-			sel <= wbvio_sel_i;
-		end else if (dmad_gnt) begin
-			adr <= dmad_adr_i;
-			dat_o <= dmad_dat_i;
-			sel <= dmad_sel_i;
+		if (spic_gnt) begin 
+			adr <= spic_adr_i;
+			dat_o <= spic_dat_i;
+			sel <= spic_sel_i;
+		end else if (pciec_gnt) begin
+			adr <= pciec_adr_i;
+			dat_o <= pciec_dat_i;
+			sel <= pciec_sel_i;
 		end else begin
-			adr <= pcic_adr_i;
-			dat_o <= pcic_dat_i;
-			sel <= pcic_sel_i;
+			adr <= bmc_adr_i;
+			dat_o <= bmc_dat_i;
+			sel <= bmc_sel_i;
 		end
 	end
 
@@ -120,11 +109,11 @@ module wbc_intercon(
 		assign prefix``_dat_o = dat_o;							\
 		assign prefix``_sel_o = sel
 
-	`SLAVE_MAP( s5_id_ctrl, S5_ID_CTRL_MASK, S5_ID_CTRL_BASE );
+	`SLAVE_MAP( rad_id_ctrl, RAD_ID_CTRL_MASK, RAD_ID_CTRL_BASE );
 	`SLAVE_MAP( l4_ctrl, L4_CTRL_MASK, L4_CTRL_BASE );
 	`SLAVE_MAP( l4_ram,  L4_RAM_MASK, L4_RAM_BASE );
-	`SLAVE_MAP( rfp, RFP_MASK, RFP_BASE );
-	`SLAVE_MAP( dma, DMA_MASK, DMA_BASE );
+	`SLAVE_MAP( trig, TRIG_MASK, TRIG_BASE );
+	`SLAVE_MAP( scal, SCAL_MASK, SCAL_BASE );
 	
 	always @(*) begin
 		if (sel_l4_ram) begin
@@ -132,26 +121,26 @@ module wbc_intercon(
 			muxed_err <= l4_ram_err_i;
 			muxed_rty <= l4_ram_rty_i;
 			muxed_dat_i <= l4_ram_dat_i;
-		end else if (sel_rfp) begin
-			muxed_ack <= rfp_ack_i;
-			muxed_err <= rfp_err_i;
-			muxed_rty <= rfp_rty_i;
-			muxed_dat_i <= rfp_dat_i;
+		end else if (sel_trig) begin
+			muxed_ack <= trig_ack_i;
+			muxed_err <= trig_err_i;
+			muxed_rty <= trig_rty_i;
+			muxed_dat_i <= trig_dat_i;
 		end else if (sel_l4_ctrl) begin
 			muxed_ack <= l4_ctrl_ack_i;
 			muxed_err <= l4_ctrl_err_i;
 			muxed_rty <= l4_ctrl_rty_i;
 			muxed_dat_i <= l4_ctrl_dat_i;
-		end else if (sel_dma) begin
-			muxed_ack <= dma_ack_i;
-			muxed_err <= dma_err_i;
-			muxed_rty <= dma_rty_i;
-			muxed_dat_i <= dma_dat_i;
+		end else if (sel_scal) begin
+			muxed_ack <= scal_ack_i;
+			muxed_err <= scal_err_i;
+			muxed_rty <= scal_rty_i;
+			muxed_dat_i <= scal_dat_i;
 		end else begin
-			muxed_ack <= s5_id_ctrl_ack_i;
-			muxed_err <= s5_id_ctrl_err_i;
-			muxed_rty <= s5_id_ctrl_rty_i;
-			muxed_dat_i <= s5_id_ctrl_dat_i;
+			muxed_ack <= rad_id_ctrl_ack_i;
+			muxed_err <= rad_id_ctrl_err_i;
+			muxed_rty <= rad_id_ctrl_rty_i;
+			muxed_dat_i <= rad_id_ctrl_dat_i;
 		end
 	end
 	
@@ -161,9 +150,9 @@ module wbc_intercon(
 	// If it becomes a crossbar I'll have to do something more intelligent.
 	// Output and input data are muxed because we don't have enough pins.
 
-//	wire cyc = (pcic_cyc_i && pcic_gnt) || (turfc_cyc_i && turfc_gnt) || (hkmc_cyc_i && hkmc_gnt);
-//	wire stb = (pcic_stb_i && pcic_gnt) || (turfc_stb_i && turfc_gnt) || (hkmc_stb_i && hkmc_gnt);
-//	wire we = (pcic_we_i && pcic_gnt) || (turfc_we_i && turfc_gnt) || (hkmc_we_i && hkmc_gnt);
+//	wire cyc = (bmc_cyc_i && bmc_gnt) || (spic_cyc_i && spic_gnt) || (pciec_cyc_i && pciec_gnt);
+//	wire stb = (bmc_stb_i && bmc_gnt) || (spic_stb_i && spic_gnt) || (pciec_stb_i && pciec_gnt);
+//	wire we = (bmc_we_i && bmc_gnt) || (spic_we_i && spic_gnt) || (pciec_we_i && pciec_gnt);
 //	reg [19:0] adr;
 //	reg [31:0] dat_o;
 //	reg [3:0] sel;
