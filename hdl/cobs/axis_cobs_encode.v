@@ -98,8 +98,6 @@ wire code_fifo_out_tlast;
 wire code_fifo_out_tuser;
 reg code_fifo_out_tready;
 
-assign s_axis_tready = code_fifo_in_tready && data_fifo_in_tready && s_axis_tready_mask;
-
 axis_fifo #(
     .DEPTH(256),
     .DATA_WIDTH(8),
@@ -502,6 +500,8 @@ always @(posedge clk) begin
         temp_m_axis_tuser_reg <= m_axis_tuser_int;
     end
 end
+
+assign s_axis_tready = code_fifo_in_tready && data_fifo_in_tready && s_axis_tready_mask;
 
 endmodule // axis_cobs_encode
 
