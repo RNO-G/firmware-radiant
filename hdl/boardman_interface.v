@@ -19,7 +19,7 @@ module boardman_interface(
         input BM_RX,
         output BM_TX        
     );
-    
+        
     parameter CLOCK_RATE = 100000000;
     parameter BAUD_RATE = 1000000;    
     
@@ -29,6 +29,10 @@ module boardman_interface(
     reg wr = 0;
     reg [3:0] wstrb = {4{1'b0}};
     reg [31:0] data = {32{1'b0}};
+    // this is the 'don't increment address' bit (bit 22) which has
+    // to be set in the board manager, because normally all addresses
+    // with bit 22 are handled by the board manager.
+    reg addr_increment = 0;
     
     reg [7:0] len = {8{1'b0}};
     reg write_last = 0;
@@ -142,15 +146,18 @@ module boardman_interface(
             end
             READDATA0: if (axis_tx_tready) begin
                 if (!len) state <= IDLE;
-                else state <= READDATA1;
+                else if (addr_increment) state <= READDATA1;
+                else state <= READCAPTURE;
             end
             READDATA1: if (axis_tx_tready) begin
                 if (!len) state <= IDLE;
-                else state <= READDATA2;
+                else if (addr_increment) state <= READDATA2;
+                else state <= READCAPTURE;
             end
             READDATA2: if (axis_tx_tready) begin
                 if (!len) state <= IDLE;
-                else state <= READDATA3;
+                else if (addr_increment) state <= READDATA3;
+                else state <= READCAPTURE;
             end
             READDATA3: if (axis_tx_tready) begin
                 if (!len) state <= IDLE;
@@ -161,17 +168,17 @@ module boardman_interface(
             // Check that later.
             WRITE0: if (axis_rx_tvalid) begin
                 if (axis_rx_tuser) state <= IDLE;
-                else if (axis_rx_tlast) state <= WRITEEN;
+                else if (axis_rx_tlast || !addr_increment) state <= WRITEEN;
                 else state <= WRITE1;
             end
             WRITE1: if (axis_rx_tvalid) begin
                 if (axis_rx_tuser) state <= IDLE;
-                else if (axis_rx_tlast) state <= WRITEEN;
+                else if (axis_rx_tlast || !addr_increment) state <= WRITEEN;
                 else state <= WRITE2;
             end
             WRITE2: if (axis_rx_tvalid) begin
                 if (axis_rx_tuser) state <= IDLE;
-                else if (axis_rx_tlast) state <= WRITEEN;
+                else if (axis_rx_tlast || !addr_increment) state <= WRITEEN;
                 else state <= WRITE3;
             end
             WRITE3: if (axis_rx_tvalid) begin
@@ -180,7 +187,13 @@ module boardman_interface(
             end
             WRITEEN: if (ack_i) begin
                 if (write_last) state <= WRITEADDR2;
-                else state <= WRITE0;
+                else if (!addr_increment) begin
+                    // figure out where we start
+                    if (capture_address[1:0] == 2'b00) state <= WRITE0;
+                    else if (capture_address[1:0] == 2'b01) state <= WRITE1;
+                    else if (capture_address[1:0] == 2'b10) state <= WRITE2;
+                    else if (capture_address[1:0] == 2'b11) state <= WRITE3;                
+                end else state <= WRITE0;
             end
             WRITEADDR2: if (axis_tx_tready) state <= WRITEADDR1;
             WRITEADDR1: if (axis_tx_tready) state <= WRITEADDR0;
@@ -191,10 +204,12 @@ module boardman_interface(
         endcase
         
         // deal with the address increments
-        if ((state == WRITEEN && ack_i) || (state == READDATA3 && axis_tx_tready)) 
+        if (((state == WRITEEN && ack_i) || (state == READDATA3 && axis_tx_tready)) && addr_increment)
             address <= { 2'b00, address[21:2], 2'b00 } + 4;
         else if (state == ADDR0)
             address <= {capture_address[23:8],axis_rx_tdata};
+        
+        if (state == ADDR2) addr_increment <= !axis_rx_tdata[6];
         
         if (state == ADDR2) capture_address[23:16] <= axis_rx_tdata;
         if (state == ADDR1) capture_address[15:8] <= axis_rx_tdata;
