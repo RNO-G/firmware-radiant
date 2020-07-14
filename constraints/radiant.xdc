@@ -2,6 +2,9 @@
 create_clock -period 20.000 -name clk50_clock -waveform {0.000 10.000} [get_ports CLK50]
 create_clock -period 5.000 -name clk200_clock -waveform {0.000 2.500} [get_ports SYS_CLK_P]
 
+set_max_delay -datapath_only -from clk50_clock -to clk200_clock 20.000
+set_max_delay -datapath_only -from clk200_clock -to clk50_clock 20.000
+
 set_property -dict {PACKAGE_PIN B19 IOSTANDARD LVDS_25} [get_ports PULSE_P]
 set_property -dict {PACKAGE_PIN A19 IOSTANDARD LVDS_25} [get_ports PULSE_N]
 
@@ -13,3 +16,22 @@ set_property -dict {PACKAGE_PIN E17 IOSTANDARD LVCMOS25} [get_ports CLK50]
 set_property -dict {PACKAGE_PIN K7 IOSTANDARD LVCMOS25} [get_ports BM_TX]
 set_property -dict {PACKAGE_PIN K6 IOSTANDARD LVCMOS25} [get_ports BM_RX]
 set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
+
+# CDAT_TDI right = G19 left = V22
+# CCLK_TMS right = E18 left = U22
+# SCLK_TCK right = F20 left = AA22
+# SSINCR_TDO right = D19 left = AA23
+set_property -dict { PACKAGE_PIN G19 IOSTANDARD LVCMOS25} [get_ports CDAT_TDI[1]]
+set_property -dict { PACKAGE_PIN V22 IOSTANDARD LVCMOS25} [get_ports CDAT_TDI[0]]
+set_property -dict { PACKAGE_PIN E18 IOSTANDARD LVCMOS25} [get_ports CCLK_TMS[1]]
+set_property -dict { PACKAGE_PIN U22 IOSTANDARD LVCMOS25} [get_ports CCLK_TMS[0]]
+set_property -dict { PACKAGE_PIN F20 IOSTANDARD LVCMOS25} [get_ports SCLK_TCK[1]]
+set_property -dict {PACKAGE_PIN AA22 IOSTANDARD LVCMOS25} [get_ports SCLK_TCK[0]]
+set_property -dict { PACKAGE_PIN D19 IOSTANDARD LVCMOS25} [get_ports SSINCR_TDO[1]]
+set_property -dict {PACKAGE_PIN AA23 IOSTANDARD LVCMOS25} [get_ports SSINCR_TDO[0]]
+
+set_property -dict {PACKAGE_PIN F18 IOSTANDARD LVCMOS25} [get_ports JTAGENB]
+
+set_property -dict {PACKAGE_PIN P18 IOSTANDARD LVCMOS25} [get_ports CS_B]
+set_property -dict {PACKAGE_PIN R14 IOSTANDARD LVCMOS25} [get_ports MOSI]
+set_property -dict {PACKAGE_PIN R15 IOSTANDARD LVCMOS25} [get_ports MISO]
