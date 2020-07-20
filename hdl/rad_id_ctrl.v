@@ -77,6 +77,27 @@ module rad_id_ctrl(
 		// The last 4 are really the SPI core, and the 2 before that are reserved.
 		wire [31:0] wishbone_registers[15:0];
 
+        parameter CBIT_COUNT = 8;
+        parameter LOG2_CBIT_COUNT = 3;
+        parameter BIST_BIT = 7;
+        
+        reg [2*CBIT_COUNT-1:0] cpld_ctrl = {2*CBIT_COUNT{1'b0}};
+        reg [1:0] cpld_ctrl_update = {2{1'b0}};
+        reg [1:0] cpld_ctrl_busy = {2{1'b0}};
+        // BIST is the top bit, and inverts the direction of SS_INCR to use as an input.
+        // *This* type of BIST we can *always* do. We CANNOT always do the analog BIST
+        // portion which relies on custom (non-running) CPLD firmware.
+        // We need to be a bit careful here, since the CPLD's output driver can do
+        // wonky things when we switch.
+        // So cpld_bist ALWAYS gets set whenever we're running. 
+        wire [1:0] cpld_bist = { cpld_ctrl[CBIT_COUNT+BIST_BIT] || cpld_ctrl_busy[1], cpld_ctrl[BIST_BIT] || cpld_ctrl_busy[0] };
+        wire [31:0] cpld_ctrl_reg = { {7{1'b0}}, cpld_ctrl_busy[1],
+                                      {(8-CBIT_COUNT){1'b0}}, cpld_ctrl[CBIT_COUNT +: CBIT_COUNT],
+                                      {7{1'b0}}, cpld_ctrl_busy[0],
+                                      {(8-CBIT_COUNT){1'b0}}, cpld_ctrl[0 +: CBIT_COUNT]};
+        reg [5:0] cclk_count = {6{1'b0}};
+        reg [2*LOG2_CBIT_COUNT-1:0] cbit_count = {2*LOG2_CBIT_COUNT{1'b0}};
+
 		reg [31:0] reset_reg = {32{1'b0}};
 		reg [31:0] pps_sel_reg = {32{1'b0}};
 		reg [31:0] led_reg = {32{1'b0}};
@@ -86,12 +107,13 @@ module rad_id_ctrl(
 		reg internal_ack = 0;
 
         wire jtagen = reset_reg[31];
-        assign JTAGENB = !jtagen;
+        assign JTAGENB = jtagen;
 
         // control signals for the aux CPLDs,
         // these will get handled later.
-        wire [1:0] cclk_i = {2{1'b0}};
-        wire [1:0] cdat_i = {2{1'b0}};
+        reg [1:0] cclk_i = {2{1'b0}};
+        reg [1:0] cdat_i = {2{1'b0}};
+
 
 		wire [31:0] spi_dat_o;
 		wire spi_ack_o;
@@ -148,7 +170,7 @@ module rad_id_ctrl(
 		// Sleaze at first. Just make all the registers 32 bit.
 		`WISHBONE_ADDRESS( 16'h0000, DEVICE, OUTPUT, [31:0], 0);
 		`WISHBONE_ADDRESS( 16'h0004, VERSION, OUTPUT, [31:0], 0);
-		`WISHBONE_ADDRESS( 16'h0008, {32{1'b0}}, OUTPUT, [31:0], 0);
+		`WISHBONE_ADDRESS( 16'h0008, cpld_ctrl_reg, OUTPUTSELECT, sel_cpld_ctrl, 0);
 		`WISHBONE_ADDRESS( 16'h000C, {32{1'b0}}, OUTPUT, [31:0], 0);
 		`WISHBONE_ADDRESS( 16'h0010, pps_sel_reg, SIGNALRESET, [31:0], {32{1'b0}});
 		`WISHBONE_ADDRESS( 16'h0014, reset_reg, SIGNALRESET, [31:0], {32{1'b0}});
@@ -172,9 +194,9 @@ module rad_id_ctrl(
 		// [15:8] TMS output values
 		// [23:16] TDO return values
 		// [26:24] number of bits to send minus 1
-		// [29] JTAG mux enable
+		// [29] TDI bit order reverse-on-write
 		// [30] enable sequence
-		// [31] data done capturing
+		// [31] data not done capturing
 		//
 		// Any write with bit 30 set autosets the sequence. That way we run at ~1 Mbit if you do, for instance:
 		// first write:
@@ -183,8 +205,9 @@ module rad_id_ctrl(
 		// 00 FF 00 FF 00 FF 00 FF ... etc.
 		// Because the enable sequence and number of bits are never updated, only the TDI values update
 		// and things just stream out.
-		reg [1:0] enable_sequence = 0;
-		reg [1:0] sequence_running = 0;
+		reg [1:0] enable_sequence = {2{1'b0}};
+		reg [1:0] sequence_running = {2{1'b0}};
+		reg [1:0] reverse_bitorder = {2{1'b0}};
 
         reg [15:0] tdi = {16{1'b0}};
         reg [15:0] tms = {16{1'b0}};
@@ -193,9 +216,9 @@ module rad_id_ctrl(
 		reg [5:0] nbit_count_max = {6{1'b0}};
 		reg [5:0] nbit_count = {6{1'b0}};
 
-        assign jtag_left_reg = { sequence_running[0], enable_sequence[0], 3'b000, nbit_count_max[0 +: 3],
+        assign jtag_left_reg = { sequence_running[0], enable_sequence[0], reverse_bitorder[0], 2'b00, nbit_count_max[0 +: 3],
                                  tdo[0 +: 8], tms[0 +: 8], tdi[0 +: 8] };
-        assign jtag_right_reg = {sequence_running[1], enable_sequence[1], 3'b000, 2'b00, nbit_count_max[3 +: 3],
+        assign jtag_right_reg = {sequence_running[1], enable_sequence[1], reverse_bitorder[1], 2'b00, nbit_count_max[3 +: 3],
                                  tdo[8 +: 8], tms[8 +: 8], tdi[8 +: 8] };
 
 
@@ -205,22 +228,40 @@ module rad_id_ctrl(
         reg [1:0] ssincr_tdo_reg = {2{1'b0}};
         (* IOB = "TRUE" *)
         reg [1:0] cdat_tdi_reg = {2{1'b0}};
+        (* KEEP = "TRUE" *)
+        reg [1:0] cdat_tdi_reg_copy = {2{1'b0}};
         (* IOB = "TRUE" *)
         reg [1:0] sclk_tck_reg = {2{1'b0}};
+        (* KEEP = "TRUE" *)
+        reg [1:0] sclk_tck_reg_copy = {2{1'b0}};
         (* IOB = "TRUE" *)
         reg [1:0] cclk_tms_reg = {2{1'b0}};
+        (* KEEP = "TRUE" *)
+        reg [1:0] cclk_tms_reg_copy = {2{1'b0}};
+
+        jtag_ila u_jtag_ila(.clk(clk_i),
+                            .probe0(enable_sequence),
+                            .probe1(sequence_running),
+                            .probe2(nbit_count),
+                            .probe3(sclk_count),
+                            .probe4(cdat_tdi_reg_copy),
+                            .probe5(sclk_tck_reg_copy),
+                            .probe6(cclk_tms_reg_copy),
+                            .probe7(ssincr_tdo_reg));        
 
 //        // JTAG signals. 1=right, 0=left
 //        inout  [1:0] SSINCR_TDO,
 //        output [1:0] CDAT_TDI,
 //        output [1:0] SCLK_TCK,
 //        output [1:0] CCLK_TMS,
-        assign SSINCR_TDO = (jtagen) ? 2'bZZ : ss_incr_i;
+        assign SSINCR_TDO[0] = (jtagen || cpld_bist[0]) ? 1'bZ : ss_incr_i[0];
+        assign SSINCR_TDO[1] = (jtagen || cpld_bist[1]) ? 1'bZ : ss_incr_i[1];        
         assign CDAT_TDI = cdat_tdi_reg;
         assign SCLK_TCK = sclk_tck_reg;
         assign CCLK_TMS = cclk_tms_reg;
         
         wire [1:0] sel_jtag = { sel_jtag_right, sel_jtag_left };
+        wire sel_cpld_ctrl_qual = (sel_cpld_ctrl && !jtagen);
         generate    
             genvar s;
 		  // clk we sr es nc sc  tck tdi/tms tdo_q
@@ -240,33 +281,84 @@ module rad_id_ctrl(
           // clear TCK at sr=1 && sc=4          
             for (s=0;s<2;s=s+1) begin : SIDE
                 always @(posedge clk_i) begin : LOGIC
+                    ///////////////////////////////////////////////////////////                    
+                    // CCLK/CDAT logic
+                    ///////////////////////////////////////////////////////////                    
+                    cpld_ctrl_update[s] <= sel_cpld_ctrl_qual && wb_we_i 
+                                           && wb_sel_i[2*s+1] 
+                                           && wb_dat_i[16*s + 8];
+
+                    if (sel_cpld_ctrl_qual && wb_we_i && wb_sel_i[2*s] 
+                        && wb_sel_i[2*s+1] && wb_dat_i[16*s+8]) 
+                        cpld_ctrl[CBIT_COUNT*s +: CBIT_COUNT] <= wb_dat_i[16*s +: CBIT_COUNT];                    
+                    
+                    if (cpld_ctrl_update[s]) cpld_ctrl_busy[s] <= 1;
+                    else if ((cbit_count[LOG2_CBIT_COUNT*s +: LOG2_CBIT_COUNT] == CBIT_COUNT-1) 
+                             && cclk_count[3*s+2]) cpld_ctrl_busy[s] <= 0;
+                    
+                    if (cpld_ctrl_busy[s]) 
+                        cclk_count[3*s +: 3] <= cclk_count[3*s +: 2] + 1;
+                    else cclk_count[3*s +: 3] <= {3{1'b0}};
+                    
+                    if (cpld_ctrl_busy[s] && (cclk_count[3*s +: 3] == 2)) 
+                        cclk_i[s] <= 1'b1;
+                    else if (cpld_ctrl_busy[s] && (cclk_count[3*s+2])) 
+                        cclk_i[s] <= 1'b0;
+                    
+                    if (cpld_ctrl_busy[s] && (cclk_count[3*s +: 3] == 1)) 
+                        cdat_i[s] <= cpld_ctrl[CBIT_COUNT*s + cbit_count[LOG2_CBIT_COUNT*s +: LOG2_CBIT_COUNT]];
+
+                    if (cpld_ctrl_busy[s]) begin
+                        if (cclk_count[3*s+2]) 
+                            cbit_count[LOG2_CBIT_COUNT*s +: LOG2_CBIT_COUNT] <= 
+                                cbit_count[LOG2_CBIT_COUNT*s +: LOG2_CBIT_COUNT] + 1;
+                    end else begin
+                        cbit_count[LOG2_CBIT_COUNT*s +: LOG2_CBIT_COUNT] <= {LOG2_CBIT_COUNT{1'b0}};
+                    end
+
+                    ///////////////////////////////////////////////////////////                    
+                    // JTAG logic
+                    ///////////////////////////////////////////////////////////                    
+                
+                    if (sel_jtag[s] && wb_we_i && wb_sel_i[3]) reverse_bitorder[s] <= wb_dat_i[29];
+                    if (sel_jtag[s] && wb_we_i && wb_sel_i[3]) enable_sequence[s] <= wb_dat_i[30];
                     if ((nbit_count[3*s +: 3] == nbit_count_max[3*s +: 3]) && sclk_count[3*s+2])
                         sequence_running[s] <= 0;
-                    else if (sel_jtag[s] && wb_we_i && ((!wb_sel_i[3] && enable_sequence[s]) || wb_sel_i[3] && wb_dat_i[31]))
+                    else if (sel_jtag[s] && wb_we_i && ((!wb_sel_i[3] && enable_sequence[s]) || wb_sel_i[3] && wb_dat_i[30]))
                         sequence_running[s] <= 1;
                     
                     // sclk counter
                     if (sequence_running[s]) sclk_count[3*s +: 3] <= sclk_count[3*s +: 2] + 1;
                     else sclk_count[3*s +: 3] <= {3{1'b0}};
                     
-                    if (!jtagen) 
+                    if (!jtagen) begin
                         cdat_tdi_reg[s] <= cdat_i[s];
-                    else if (sequence_running[s] && (sclk_count[3*s +: 3]==1)) 
+                        cdat_tdi_reg_copy[s] <= cdat_i[s];
+                    end else if (sequence_running[s] && (sclk_count[3*s +: 3]==1)) begin
                         cdat_tdi_reg[s] <= tdi[8*s + nbit_count[3*s +: 3]];
+                        cdat_tdi_reg_copy[s] <= tdi[8*s + nbit_count[3*s +: 3]];
+                    end
                     
-                    if (!jtagen) 
+                    if (!jtagen) begin
                         cclk_tms_reg[s] <= cclk_i[s];
-                    else if (sequence_running[s] && (sclk_count[3*s +: 3]==1)) 
+                        cclk_tms_reg_copy[s] <= cclk_i[s];
+                    end else if (sequence_running[s] && (sclk_count[3*s +: 3]==1)) begin
                         cclk_tms_reg[s] <= tms[8*s + nbit_count[3*s +: 3]];
+                        cclk_tms_reg_copy[s] <= tms[8*s + nbit_count[3*s +: 3]];
+                    end
                     
-                    if (!jtagen) 
+                    if (!jtagen) begin
                         sclk_tck_reg[s] <= sclk_i[s];
-                    else if (sequence_running[s] && (sclk_count[3*s +: 3]==2)) 
+                        sclk_tck_reg_copy[s] <= sclk_i[s];
+                    end else if (sequence_running[s] && (sclk_count[3*s +: 3]==2)) begin
                         sclk_tck_reg[s] <= 1'b1;
-                    else if (sequence_running[s] && (sclk_count[3*s + 2]))
+                        sclk_tck_reg_copy[s] <= 1'b1;
+                    end else if (sequence_running[s] && (sclk_count[3*s + 2])) begin
                         sclk_tck_reg[s] <= 1'b0;
+                        sclk_tck_reg_copy[s] <= 1'b0;
+                    end
                     
-                    if (jtagen && sequence_running[s] && (sclk_count[3*s +: 3]==3))
+                    if ((jtagen && sequence_running[s] && (sclk_count[3*s +: 3]==3)) || cpld_bist[s])
                         ssincr_tdo_reg[s] <= SSINCR_TDO[s];
                     if (jtagen && sequence_running[s] && (sclk_count[3*s+2]))
                         tdo[8*s + nbit_count[3*s +: 3]] <= ssincr_tdo_reg[s];
@@ -280,7 +372,21 @@ module rad_id_ctrl(
                     if (sel_jtag[s] && wb_we_i && wb_sel_i[3]) nbit_count_max[3*s +: 3] <= wb_dat_i[24 +: 3];
                     
                     // tdi/tms
-                    if (sel_jtag[s] && wb_we_i && wb_sel_i[0]) tdi[8*s +: 8] <= wb_dat_i[0 +: 8];
+                    // tdi has magic byte reversal powers, tms/tdo do not.
+                    if (sel_jtag[s] && wb_we_i && wb_sel_i[0]) begin
+                        if ((wb_sel_i[3] && !wb_dat_i[29]) || (!wb_sel_i[3] && reverse_bitorder[s]))
+                            tdi[8*s +: 8] <= wb_dat_i[0 +: 8];
+                        else begin
+                            tdi[8*s + 0] <= wb_dat_i[7];
+                            tdi[8*s + 1] <= wb_dat_i[6];
+                            tdi[8*s + 2] <= wb_dat_i[5];
+                            tdi[8*s + 3] <= wb_dat_i[4];
+                            tdi[8*s + 4] <= wb_dat_i[3];
+                            tdi[8*s + 5] <= wb_dat_i[2];
+                            tdi[8*s + 6] <= wb_dat_i[1];
+                            tdi[8*s + 7] <= wb_dat_i[0];
+                        end
+                    end                            
                     if (sel_jtag[s] && wb_we_i && wb_sel_i[1]) tms[8*s +: 8] <= wb_dat_i[8 +: 8];
                 end
             end
@@ -315,6 +421,11 @@ module rad_id_ctrl(
 							  .sck_o(spi_sck),
 							  .mosi_o(MOSI),
 							  .miso_i(MISO));
+        spi_ila u_spi_ila(.clk(clk_i),
+                            .probe0( spi_sck ),
+                            .probe1( CS_B ),
+                            .probe2( MOSI ),
+                            .probe3( MISO ));
 		STARTUPE2 #(.PROG_USR("FALSE")) u_startupe2(.CLK(1'b0),
 									 .GSR(1'b0),
 									 .GTS(1'b0),
