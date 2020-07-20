@@ -16,6 +16,8 @@ module radiant_top( input SYS_CLK_P,
                     output MOSI,
                     input MISO,
                     output CS_B,
+                    output HOLDB,
+                    output WPB,
                     output F_LED
     );
 
@@ -102,4 +104,6 @@ module radiant_top( input SYS_CLK_P,
     OBUFDS u_obufpulse(.I(pulse_out),.O(PULSE_P),.OB(PULSE_N));
         
     assign CLK50_EN = 1'b1;
+    assign WPB = 1'b1;
+    assign HOLDB = 1'b1;
 endmodule
