@@ -1,0 +1,264 @@
+CONSTANT	control_port, 00
+CONSTANT	test_0,	      04
+CONSTANT	test_1,	      05
+CONSTANT	user_0,	      08
+CONSTANT	user_1,	      09
+CONSTANT	user_2,	      0A
+CONSTANT	user_3,	      0B
+CONSTANT	serial_0,     10
+CONSTANT	serial_1,     11
+CONSTANT	serial_2,     12
+CONSTANT	serial_3,     13
+CONSTANT	ramp_0,	      17
+CONSTANT	trigger_0,    14
+CONSTANT        header_0,     15
+CONSTANT	readout_0,    16
+CONSTANT reset_request_bit, 01
+CONSTANT	runmode_request_bit,	02
+CONSTANT	runmode_bit,		04
+CONSTANT	user_serial_request_bit,	80
+CONSTANT	test_request_bit,		80
+CONSTANT	serial_busy_bit,		80
+CONSTANT	serial_GO,			40
+; this works up to 63 LABs
+CONSTANT	serial_GO_ALL,			7F
+
+CONSTANT	do_ramp,			40
+CONSTANT	ramp_busy_bit,			80
+
+CONSTANT	do_readout,			40
+CONSTANT	readout_busy_bit,		80
+
+CONSTANT	readout_GCC_reset_0,		00
+CONSTANT	readout_GCC_reset_1,		E0
+CONSTANT	readout_GCC_reset_2,		00
+; SEL_ANY is set in the AMON register.
+; We determine whether we get it or the test pattern
+; from a bit in the readout register. So it's not here.
+CONSTANT	readout_set_selany_1,		C0
+CONSTANT	readout_set_selany_2,		00
+
+CONSTANT	readout_load_addr_2,		01
+CONSTANT	readout_ss_clr_0,		00
+CONSTANT	readout_ss_clr_1,		F0
+CONSTANT	readout_ss_clr_2,		00
+
+CONSTANT	trigger_start_bit,		01
+CONSTANT	trigger_stop_bit,		02
+CONSTANT	trigger_empty_bit,		80
+CONSTANT	trigger_read_bit,		40
+CONSTANT	trigger_reset_bit,		20
+
+reset:
+main:
+	; check runmode requests
+	input	s0,	control_port
+	test  s0,   reset_request_bit
+	jump  NZ,   reset_request
+	test	s0,	runmode_request_bit
+	jump	NZ,	runmode_request
+	input	s0,	user_3
+	test	s0,	user_serial_request_bit
+	jump	NZ,	user_serial_request
+	input	s0,	test_1
+	test	s0,	test_request_bit
+	jump	NZ,	test_request	
+	jump 	main
+
+; OK, so the FIFO is not empty. Read it out.
+readout:
+	load	s0,	trigger_read_bit
+	output	s0,	trigger_0
+	; Now fetch the data.
+	input	s0,	trigger_0
+	and	s0,	1F
+	load	s7,	s0
+	; The bank address comes only from bits 3:2.
+	and	s0,	0C
+	load	s6,	s0
+	; First window to convert is window 0.
+	load	sF,	s0
+	;
+	; In This Loop:
+	; sF is current window.
+	; s8/s9/sA/sB are 32-bit input/outputs.
+	; s7 contains the raw address we read out.
+	;
+readout_begin:
+	input	s0,	serial_3
+	test	s0,	serial_busy_bit
+	jump	NZ,	readout_begin
+	load	s8,	readout_GCC_reset_0
+	load	s9,	readout_GCC_reset_1
+	load	sA,	readout_GCC_reset_2
+	load	sB,	serial_GO_ALL
+	output	s8,	serial_0
+	output	s9,	serial_1
+	output	sA,	serial_2
+	output	sB,	serial_3
+	; prep the next request, which sets SEL_ANY (or not!)
+	input   s8,	readout_0
+	and	s8,	10
+	load	s9,	readout_set_selany_1
+	load	sA,	readout_set_selany_2
+readout_lp1:
+	input	s0,	serial_3
+	test	s0,	serial_busy_bit
+	jump	NZ,	readout_lp1
+	output	s8,	serial_0
+	output	s9,	serial_1
+	output	sA,	serial_2
+	output	sB,	serial_3
+	; prep the next request, which sets the read address
+	;
+	; The read address gets loaded into bits 11:7.
+	; We have them in bits 4:0.
+	; So we shift them up by 8 by using s9 as an MSB
+	; of a 16-bit pair (s9,s8)
+	; Then we shift that 16-bit object down 1
+	; to get a total shift of 7.
+
+	; Readout address is 16, which will be 010. So top byte is 01.
+	load    sA,     readout_load_addr_2
+	; Fetch the current block.
+	load	s9,	sF
+	; Pick off only the bottom 5 bits.
+	and     s9,	1F
+	; Initialize the bottom byte to 0. Our pair is now (s9,s8)
+	load	s8,	00
+	; Shift the 16-bit object down by 1, and feed in '0'.
+	sr0	s9
+	sra	s8
+readout_lp2:
+	input	s0,	serial_3
+	test	s0,	serial_busy_bit
+	jump	NZ,	readout_lp2
+	output	s8,	serial_0
+	output	s9,	serial_1
+	output	sA,	serial_2
+	output	sB,	serial_3
+readout_lp3:
+	input	s0,	serial_3
+	test	s0,	serial_busy_bit
+	jump	NZ,	readout_lp3
+	load	s0,	do_ramp
+	output	s0,	ramp_0
+	; prep the next command, which is a sample clear
+	; this could be fixed later to be done once per *total* readout
+	load    s8,  	readout_ss_clr_0
+	load	s9,	readout_ss_clr_1
+	load	sA,	readout_ss_clr_2
+readout_lp4:
+	; wait for ramp
+	input   s0,	ramp_0
+	test	s0,	ramp_busy_bit
+	jump	NZ,	readout_lp4
+	output	s8,	serial_0
+	output	s9,	serial_1
+	output	sA,	serial_2
+	output	sB,	serial_3
+readout_lp5:
+	input	s0,	serial_3
+	test	s0,	serial_busy_bit
+	jump	NZ,	readout_lp5
+	; Prep the headers.
+	load    s0,	s6
+	; Is this the trigger window?
+	compare	s7,	sF
+	jump	NZ,	readout_jp1
+	or	s0,	02
+readout_jp1:
+	output	s0,	header_0
+	load	s0,	do_readout
+	output	s0,	readout_0
+readout_lp6:
+	input	s0,	readout_0
+	test	s0,	readout_busy_bit
+	jump	NZ,	readout_lp6
+	; Copy our window...
+	load	s0,	sF
+	; 
+	; The window sequence goes
+	; 0xx00
+	; 1xx00
+	; 0xx01
+	; 1xx01
+	; 0xx10
+	; 1xx10
+	; 0xx11
+	; 1xx11
+	; 
+	; Check to see if we're done (window 7 has bits 4,0,1 set).
+	and	s0,	13
+	compare	s0,	13
+	jump	Z,	readout_complete
+	; We're not done. Toggle bit 4.
+	xor	sF, 	10
+	; Is bit 4 set now?
+	test	sF,	10
+	; If so, begin readout.
+	jump	NZ,	readout_begin
+	; Otherwise, increment to the next window pair.
+	add	sF,	01
+	; And begin readout again.
+	jump	readout_begin
+readout_complete:
+	return
+
+reset_request:
+	; Disable the runmode bit.
+	load	s0, trigger_stop_bit
+	output s0, trigger_0
+	; Reset the trigger FIFO.
+	load	s0, trigger_reset_bit
+	output s0, trigger_0
+	; and clear the reset request
+	load	s0, 00
+	output s0, control_port
+	jump	main
+
+runmode_request:
+	; Reset. This clears the trigger FIFO.
+	load	s0,	trigger_reset_bit
+	output	s0,	trigger_0
+	; issue start_i
+	load	s0,	trigger_start_bit
+	output	s0,	trigger_0
+	load   s0, 	runmode_bit
+	output s0,	control_port
+runmode_loop:
+	; check trigger here
+	input	s0,	trigger_0
+	test	s0,	trigger_empty_bit
+	call	Z,	readout
+	input	s0,	control_port
+	test	s0,	runmode_request_bit
+	jump	NZ,	runmode_loop
+	load	s0,	trigger_stop_bit
+	output	s0,	trigger_0
+	load	s0,	00
+	output	s0,	control_port
+	jump	main
+user_serial_request:
+	input	s8,	user_0
+	input	s9,	user_1
+	input	sA,	user_2
+	input	sB,	user_3
+	and	sB,	0F
+	output	s8,	serial_0
+	output	s9,	serial_1
+	output	sA,	serial_2
+	or	sB,	serial_GO
+	output	sB,	serial_3
+user_serial_request_lp1:
+	input	s0,	serial_3
+	test	s0,	serial_busy_bit
+	jump	Z,	user_serial_request_lp1
+	load	s0,	00
+	output	s0,	user_3
+	jump	main
+test_request:
+	; do test stuff
+	load 	s0,	00
+	output	s0,	test_1
+	jump	main
