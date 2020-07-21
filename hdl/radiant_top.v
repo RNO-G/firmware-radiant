@@ -1,5 +1,6 @@
 `timescale 1ns / 1ps
 `include "wishbone.vh"
+`include "lab4.vh"
 module radiant_top( input SYS_CLK_P,
                     input SYS_CLK_N,
                     output PULSE_P,
@@ -12,6 +13,21 @@ module radiant_top( input SYS_CLK_P,
                     output [1:0] CCLK_TMS,
                     output [1:0] SCLK_TCK,
                     inout [1:0] SSINCR_TDO,
+                    output [1:0] RAMP,
+                    
+                    output [23:0] PCLK,
+                    output [23:0] WCLK_P,
+                    output [23:0] WCLK_N,
+                    output [23:0] SIN,
+                    
+                    output [19:0] WR,
+
+                    input [1:0] MONTIMING_P,
+                    input [1:0] MONTIMING_N,
+                    inout SYNCMON,
+                    
+                    output REGCLR,
+
                     output JTAGENB,
                     output MOSI,
                     input MISO,
@@ -29,8 +45,28 @@ module radiant_top( input SYS_CLK_P,
     parameter [15:0] FIRMWARE_DATE = {16{1'b0}};
     localparam [31:0] DATEVERSION = { FIRMWARE_DATE, FIRMWARE_VERSION };
 
+    localparam [23:0] WCLK_POLARITY = 24'b000101111111000100110011;
+    localparam [1:0] MONTIMING_POLARITY = 2'b11;
+
+    // sysclk coming in is 25 MHz.
+    wire sysclk_in;
+    // sysclk is 100 MHz
     wire sysclk;
-    IBUFDS u_sysclk_ibuf(.I(SYS_CLK_P),.IB(SYS_CLK_N),.O(sysclk));
+    // sysclk_div4 is 25 MHz
+    wire sysclk_div4; 
+    // this is a flag synchronizing sysclk to sysclk_div4
+    wire sysclk_div4_flag;
+    // phase shift clock (12.5 MHz)
+    wire sysclk_div8_ps;
+    wire ps_clk;
+    wire ps_en;
+    wire ps_incdec;
+    wire ps_done;
+    // global 12.5 MHz sync
+    wire sync;
+    // 200 MHz
+    wire wclk;
+    IBUFDS u_sysclk_ibuf(.I(SYS_CLK_P),.IB(SYS_CLK_N),.O(sysclk_in));
 
     `WB_DEFINE( bmc , 32, 22, 4 );
     `WB_DEFINE( spic, 32, 22, 4 );
@@ -42,7 +78,6 @@ module radiant_top( input SYS_CLK_P,
     `WB_DEFINE( trig, 32, 16, 4);
     `WB_DEFINE( scal, 32, 16, 4);
     
-    `WBM_KILL( l4_ctrl, 32);
     `WBM_KILL( l4_ram, 32);
     `WBM_KILL( trig, 32);
     `WBM_KILL( scal, 32);
@@ -77,11 +112,32 @@ module radiant_top( input SYS_CLK_P,
                             `WBM_CONNECT( trig , trig),
                             `WBM_CONNECT( scal , scal));
 
+    wire [1:0] ss_incr;
+    wire [1:0] sclk;
+    wire [1:0] shout;
+    wire [`LAB4_WR_WIDTH-1:0] reset_wr;
     rad_id_ctrl #(.DEVICE(IDENT),.VERSION(DATEVERSION)) u_id(.clk_i(CLK50),.rst_i(1'b0),
                      `WBS_CONNECT( rad_id_ctrl, wb ),
+                     .sys_clk_in(sysclk_in),
+                     .sys_clk_o(sysclk),
+                     .sys_clk_div4_o(sysclk_div4),
+                     .sys_clk_div4_flag_o(sysclk_div4_flag),
+                     .sync_o(sync),
+                     .sync_reset_i(),
+                     .wclk_o(wclk),
+                     
+                     .reset_wr_o(reset_wr),
+                     
+                     .sys_clk_div8_ps_o(sysclk_div8_ps),
+                     .ps_clk_i(ps_clk),
+                     .ps_en_i(ps_en),
+                     .ps_incdec_i(ps_incdec),
+                     .ps_done_o(ps_done),
+                                          
                      .internal_led_i(counter[23]),
-                     .ss_incr_i(2'b00),
-                     .sclk_i(2'b00),
+                     .ss_incr_i(ss_incr),
+                     .sclk_i(sclk),
+                     .shout_o(shout),
                      .JTAGENB(JTAGENB),
                      .SSINCR_TDO(SSINCR_TDO),
                      .CDAT_TDI(CDAT_TDI),
@@ -91,14 +147,85 @@ module radiant_top( input SYS_CLK_P,
                      .MISO(MISO),
                      .CS_B(CS_B),
                      .F_LED(F_LED));
-                     
+    
+    wire [1:0] montiming_bar;
+    wire [1:0] montiming;
+    (* IOB = "TRUE" *)
+    reg [1:0] montiming_reg = {2{1'b0}};
+    generate
+        genvar m;
+        for (m=0;m<2;m=m+1) begin : MT
+            if (MONTIMING_POLARITY[m] == 1'b0) begin : POS
+                IBUFDS_DIFF_OUT u_mt_ibuf(.I(MONTIMING_P[m]),.IB(MONTIMING_N[m]),.O(montiming[m]),.OB(montiming_bar[m]));
+            end else begin : NEG
+                IBUFDS_DIFF_OUT u_mt_ibuf(.I(MONTIMING_N[m]),.IB(MONTIMING_P[m]),.O(montiming_bar[m]),.OB(montiming[m]));
+            end
+        end
+    endgenerate
+    always @(posedge sysclk) montiming_reg <= montiming;
+    
+    // unuseds for now
+    wire readout;
+    wire [3:0] readout_header;
+    wire readout_test_pattern;
+    wire readout_fifo_rst;
+    wire readout_rst;
+    wire [23:0] readout_fifo_empty = {24{1'b0}};
+    wire [9:0] readout_empty_size;
+    wire [3:0] readout_prescale;
+    wire readout_complete = 1'b1;
+    wire trigger_in = 1'b0;
+    lab4d_controller #(.NUM_LABS(24),.NUM_MONTIMING(2),.NUM_SCLK(2),.NUM_REGCLR(1),.NUM_RAMP(2),
+                       .NUM_SHOUT(2),.NUM_WR(4),.WCLK_POLARITY(WCLK_POLARITY))    
+                     u_controller( .clk_i(CLK50),
+                                   .rst_i(1'b0),
+                                   `WBS_CONNECT(l4_ctrl, wb),
+                                    // MAKE THESE REAL
+                                   .sys_clk_i(sysclk),
+                                   .sys_clk_div4_flag_i(sysclk_div4_flag),
+                                   .sync_i(sync),
+                                   .wclk_i(wclk),
+                                   
+                                   .reset_wr_i(reset_wr),
+                                   
+                                   .trig_i(trigger_in),
+                                   
+                                   .clk_ps_i(sysclk_div8_ps),
+                                   .ps_clk_o(ps_clk),
+                                   .ps_en_o(ps_en),
+                                   .ps_incdec_o(ps_incdec),
+                                   .ps_done_i(ps_done),
+                                   .MONTIMING_B(montiming_bar),
+                                    // unused, but needs to be connected to an (unused) IO
+                                   .sync_mon_io(SYNCMON),
+                                   
+                                   .readout_o(readout),
+                                   .readout_header_o(readout_header),
+                                   .readout_test_pattern_o(readout_test_pattern),
+                                   .readout_fifo_rst_o(readout_fifo_rst),
+                                   .readout_rst_o(readout_rst),
+                                   .readout_fifo_empty_i(readout_fifo_empty),
+                                   .readout_empty_size_o(readout_empty_size),
+                                   .prescale_o(readout_prescale),
+                                   .complete_i(readout_complete),
+                                   
+                                   .montiming_i(montiming_reg),
+                                   // END MAKE THESE REAL
+                                   .SIN(SIN),
+                                   .SCLK(sclk),
+                                   .PCLK(PCLK),
+                                   .REGCLR(REGCLR),
+                                   .RAMP(RAMP),
+                                   .WCLK_P(WCLK_P),
+                                   .WCLK_N(WCLK_N),
+                                   .SHOUT(shout),
+                                   .WR(WR));
+                                   
     
     reg [24:0] counter = {25{1'b0}};
     
     always @(posedge sysclk) counter <= counter[23:0] + 1;
-    
-    vio_0 u_vio(.clk(CLK50),.probe_in0(counter[23]));
-    
+        
     wire pulse_out;
     ODDR u_oddrpulse(.D1(1'b1),.D2(1'b0),.CE(counter[24]),.C(sysclk),.S(1'b0),.R(1'b0),.Q(pulse_out));
     OBUFDS u_obufpulse(.I(pulse_out),.O(PULSE_P),.OB(PULSE_N));
