@@ -22,6 +22,7 @@ CONSTANT	serial_busy_bit,		80
 CONSTANT	serial_GO,			40
 ; this works up to 63 LABs
 CONSTANT	serial_GO_ALL,			7F
+CONSTANT	user_serial_select_mask,	3F
 
 CONSTANT	do_ramp,			40
 CONSTANT	ramp_busy_bit,			80
@@ -244,7 +245,7 @@ user_serial_request:
 	input	s9,	user_1
 	input	sA,	user_2
 	input	sB,	user_3
-	and	sB,	0F
+	and	sB,	user_serial_select_mask
 	output	s8,	serial_0
 	output	s9,	serial_1
 	output	sA,	serial_2
