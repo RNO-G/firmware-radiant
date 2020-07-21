@@ -481,7 +481,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h7C)) bram_we <= 1;
 		else bram_we <= 0;
 
-      ack <= wb_cyc_i && wb_sel_i;
+        ack <= wb_cyc_i && wb_stb_i;
 	end
 	always @(posedge sys_clk_i) begin
 		if (readout_header_write_sysclk) readout_header_sysclk <= readout_header_clk;
