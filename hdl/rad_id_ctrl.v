@@ -36,10 +36,36 @@
 //         execute a dummy SPI transaction with the Slave Select pin high (bit 0 in
 //         register 0x0030 = 0) before performing any real SPI transactions.
 `include "wishbone.vh"
+`include "lab4.vh"
 module rad_id_ctrl(
 		input clk_i,
 		input rst_i,
 		`WBS_NAMED_PORT(wb, 32, 16, 4),
+
+        // Sysclk stuff. Input 25 MHz...
+        input sys_clk_in,
+        // output 100 MHz
+        output sys_clk_o,
+        // output 25 MHz sync to sys_clk_in
+        output sys_clk_div4_o,
+        // flag, in 100 MHz domain, indicating that this
+        // is the clock where sys_clk_div4 goes high
+        output sys_clk_div4_flag_o,
+        // phase
+        output sync_o,
+        input sync_reset_i,
+        // 200 MHz clock
+        output wclk_o,
+        
+        // phase shifter 12.5 MHz clock
+        output sys_clk_div8_ps_o,
+        input ps_clk_i,
+        input ps_en_i,
+        input ps_incdec_i,
+        output ps_done_o,
+        
+        // static WR value when in reset
+        output [`LAB4_WR_WIDTH-1:0] reset_wr_o,
 		
         // internal LED signal
         input [0:0] internal_led_i,
@@ -47,6 +73,7 @@ module rad_id_ctrl(
         // Passthroughs for the shared JTAG signals.
         input [1:0] ss_incr_i,
         input [1:0] sclk_i,
+        output [1:0] shout_o,
         
         // JTAG enable
         output JTAGENB,
@@ -76,6 +103,10 @@ module rad_id_ctrl(
 		// Our internal space is 4 bits wide = 16 registers (5:2 only matter).
 		// The last 4 are really the SPI core, and the 2 before that are reserved.
 		wire [31:0] wishbone_registers[15:0];
+        
+        // these determine which phase of the 100 MHz clock is picked off
+        // for matching to the 25 MHz clock.
+		reg [1:0] phase_select = {2{1'b0}};
 
         parameter CBIT_COUNT = 8;
         parameter LOG2_CBIT_COUNT = 3;
@@ -114,6 +145,14 @@ module rad_id_ctrl(
         reg [1:0] cclk_i = {2{1'b0}};
         reg [1:0] cdat_i = {2{1'b0}};
 
+        // resynchronized in sysclk
+        reg [`LAB4_WR_WIDTH-1:0] reset_wr_sysclk = {`LAB4_WR_WIDTH{1'b0}};
+        reg [`LAB4_WR_WIDTH-1:0] reset_wr_sysclk_rereg = {`LAB4_WR_WIDTH{1'b0}};
+        always @(posedge sys_clk_o) begin
+            reset_wr_sysclk <= reset_reg[16 +: `LAB4_WR_WIDTH];
+            reset_wr_sysclk_rereg <= reset_wr_sysclk;
+        end
+        assign reset_wr_o = reset_wr_sysclk_rereg;
 
 		wire [31:0] spi_dat_o;
 		wire spi_ack_o;
@@ -177,11 +216,8 @@ module rad_id_ctrl(
 		`WISHBONE_ADDRESS( 16'h0018, led_reg, OUTPUTSELECT, sel_led_reg, 0);
 		`WISHBONE_ADDRESS( 16'h001C, jtag_left_reg, OUTPUTSELECT, sel_jtag_left, 0);
 		`WISHBONE_ADDRESS( 16'h0020, jtag_right_reg, OUTPUTSELECT, sel_jtag_right, 0);
-        // 1C is jtag_left
-        // 20 is jtag_right
 		`WISHBONE_ADDRESS( 16'h0024, spiss_reg, SIGNALRESET, [31:0], {32{1'b0}});
-		`WISHBONE_ADDRESS( 16'h0028, {32{1'b0}}, OUTPUT, [31:0], 0);
-//		`WISHBONE_ADDRESS( 16'h0028, {{30{1'b0}},phase_select}, OUTPUTSELECT, sel_phase_select, 0);
+		`WISHBONE_ADDRESS( 16'h0028, {{30{1'b0}},phase_select}, OUTPUTSELECT, sel_phase_select, 0);
 		`WISHBONE_ADDRESS( 16'h002C, {{31{1'b0}},dna_data}, OUTPUTSELECT, sel_dna, 0);
 		// Shadow registers - never accessed (the SPI core takes over). Just here to make decoding easier.
 		`WISHBONE_ADDRESS( 16'h0030, pps_sel_reg, OUTPUT, [31:0], 0);
@@ -406,6 +442,126 @@ module rad_id_ctrl(
 			end
 		end
 
+        // SYS CLK WIZARDRY		
+		// We just want a multiply by 4, so we'll boost the VCO to 1 GHz and divide by 10.
+		// 
+		wire SST_FB;
+		wire sys_clk_mmcm;
+		wire sys_clk_div4_mmcm;
+		wire sys_clk_div8_ps_mmcm;
+		wire mmcm_reset = reset_reg[0];
+
+		MMCME2_ADV #(
+		.BANDWIDTH("OPTIMIZED"), // Jitter programming ("HIGH","LOW","OPTIMIZED")
+		.CLKFBOUT_MULT_F(40.0), // Multiply value for all CLKOUT (2.000-64.000).
+		.CLKFBOUT_PHASE(0.0), // Phase offset in degrees of CLKFB (0.00-360.00).
+		// CLKIN_PERIOD: Input clock period in ns to ps resolution (i.e. 33.333 is 30 MHz).
+		.CLKIN1_PERIOD(40.0),
+		.CLKIN2_PERIOD(40.0),
+		.CLKOUT0_DIVIDE_F(5.0), // WCLK (400 MHz)
+		.CLKOUT1_DIVIDE(10.0),	 // SYSCLK (100 MHz)
+		.CLKOUT2_DIVIDE(40.0),	 // SYSCLK_DIV4 (25 MHz)
+		.CLKOUT3_DIVIDE(80.0),	 // SYSCLK_DIV8_PS (12.5 MHz)
+		.CLKOUT3_USE_FINE_PS("TRUE"),
+		// CLKOUT0_DUTY_CYCLE - CLKOUT6_DUTY_CYCLE: Duty cycle for CLKOUT outputs (0.01-0.99).
+		.CLKOUT0_DUTY_CYCLE(0.5),
+		// CLKOUT0_PHASE - CLKOUT6_PHASE: Phase offset for CLKOUT outputs (-360.000-360.000).
+		.CLKOUT0_PHASE(0.0),
+		.DIVCLK_DIVIDE(1), // Master division value (1-106)		
+		.REF_JITTER1(0.0),
+		.REF_JITTER2(0.0),
+		.STARTUP_WAIT("FALSE")) u_mmcm(	.CLKIN1(sys_clk_in),
+													.CLKIN2(),
+													.CLKOUT0(wclk_mmcm),
+													.CLKOUT1(sys_clk_mmcm),
+													.CLKOUT2(sys_clk_div4_mmcm),
+													.CLKOUT3(sys_clk_div8_ps_mmcm),
+													.PSCLK(ps_clk_i),
+													.PSEN(ps_en_i),
+													.PSINCDEC(ps_incdec_i),
+													.PSDONE(ps_done_o),
+													.LOCKED(),
+													.RST(mmcm_reset),
+													.PWRDWN(1'b0),
+													.CLKFBOUT(mmcm_fb_out),
+													.CLKFBIN(mmcm_fb_in),
+													.CLKINSEL(1'b1),
+													.CLKFBSTOPPED(),
+													.CLKINSTOPPED());
+		BUFG u_sysclk(.I(sys_clk_mmcm),.O(sys_clk_o));
+		BUFG u_sysclk_fb(.I(mmcm_fb_out),.O(mmcm_fb_in));
+		BUFG u_sysclk_div4(.I(sys_clk_div4_mmcm),.O(sys_clk_div4_o));
+		BUFG u_wclk(.I(wclk_mmcm),.O(wclk_o));
+		BUFG u_clkps(.I(sys_clk_div8_ps_mmcm),.O(sys_clk_div8_ps_o));
+		
+		reg phase_select_flag = 0;
+		wire phase_select_flag_sysclk;
+		reg [1:0] phase_select_sysclk = {2{1'b0}};
+
+		reg [3:0] div4_flag_quadrature = {4{1'b0}};		
+		wire div4_flag = div4_flag_quadrature[phase_select_sysclk];
+
+		always @(posedge clk_i) begin
+			if (sel_phase_select && wb_we_i) begin
+				phase_select <= wb_dat_i[1:0];
+				phase_select_flag <= 1;
+			end else begin
+				phase_select_flag <= 0;
+			end
+		end
+		flag_sync u_phase_wr_sync(.in_clkA(phase_select_flag),.clkA(clk_i),.out_clkB(phase_select_flag_sysclk),.clkB(sys_clk_o));
+		always @(posedge sys_clk_o) begin
+			if (phase_select_flag_sysclk)
+				phase_select_sysclk <= phase_select;
+		end
+		
+        reg toggle_sysclk_div4 = 0;
+        reg [1:0] toggle_sysclk_div4_in_sysclk = 2'b00;
+        reg toggle_edge_detect_in_sysclk = 0;
+        reg delay_edge_detect = 0;
+        reg sys_clk_div4_flag = 0;
+        reg sync_reset_req = 0;
+        reg sync_reg = 0;
+		// OK, so this is complicated. First, we generate a toggle flop in the 25 MHz domain.
+		// Just gives us a register to re-register in the 100 MHz domain. Doesn't matter its phase,
+		// we're just looking for edges.
+		always @(posedge sys_clk_div4_o) begin
+			toggle_sysclk_div4 <= ~toggle_sysclk_div4;
+		end
+		always @(posedge sys_clk_o) begin
+			toggle_sysclk_div4_in_sysclk <= {toggle_sysclk_div4_in_sysclk[0],toggle_sysclk_div4};
+			// So when toggle_sysclk_div4_in_sysclk is '01'/'10', that means we are at (first time)
+			// sysclk: _-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_- 
+			//    clk: ________--------________--------
+			// toggle: _________----------------_______
+			// tginsy: 00000000001133333333333333220000
+			// detflg: 00000000000011000000000000110000
+			//   flg1: 00000000000000110000000000001100
+			//   flg2: 00000000000000001100000000000011
+			//
+			// detflg looks for '01' or '10' in the 2-bit shift register.
+			// We then delay that flag 2 cycles, and that then indicates
+			// the *first* cycle in the 4-cycle clock period.
+			// 
+			// Timing analysis should guarantee that the toggle_sysclk_div4 -> toggle_sysclk_div4_in_sysclk
+			// transition happens cleanly, and the clock periods are long enough that it's tough to imagine
+			// skew causing a problem.
+			toggle_edge_detect_in_sysclk <= (toggle_sysclk_div4_in_sysclk == 2'b10 || toggle_sysclk_div4_in_sysclk == 2'b01);
+			delay_edge_detect <= toggle_edge_detect_in_sysclk;
+			div4_flag_quadrature <= {div4_flag_quadrature[2:0],delay_edge_detect};
+			sys_clk_div4_flag <= div4_flag;
+
+			if (sys_clk_div4_flag) begin
+				if (sync_reset_req) sync_reg <= 0;
+				else sync_reg <= ~sync_reg;
+			end
+			if (sync_reset_i) sync_reset_req <= 1;
+			else if (sys_clk_div4_flag) sync_reset_req <= 0;
+		end														
+		
+		assign sys_clk_div4_flag_o = sys_clk_div4_flag;		
+        assign sync_o = sync_reg;		
+
         assign F_LED = led_reg[0];
         
 		simple_spi_top u_spi(.clk_i(clk_i),
@@ -446,5 +602,5 @@ module rad_id_ctrl(
 
 		assign CS_B = !spiss_reg[0];		
 		assign CS_B_alt = !spiss_reg[0];
-
+        assign shout_o = ssincr_tdo_reg;
 endmodule
