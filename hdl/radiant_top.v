@@ -22,9 +22,7 @@ module radiant_top( input SYS_CLK_P,
                     
                     output [19:0] WR,
 
-                    output [1:0] SRCLK_P,
-                    output [1:0] SRCLK_N,
-                    output [1:0] SS_INCR,
+                    output [1:0] SRCLK,
                     
                     input [23:0] DOE_P,
                     input [23:0] DOE_N,
@@ -53,26 +51,26 @@ module radiant_top( input SYS_CLK_P,
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
     parameter [3:0] VER_MINOR = 0;
-    parameter [7:0] VER_REV = 1;
+    parameter [7:0] VER_REV = 2;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     parameter [15:0] FIRMWARE_DATE = {16{1'b0}};
     localparam [31:0] DATEVERSION = { FIRMWARE_DATE, FIRMWARE_VERSION };
 
-    localparam [23:0] WCLK_POLARITY =    24'b000101111111000100110011;
+    localparam [23:0] WCLK_POLARITY =       24'b000101111111000100110011;
     localparam [1:0] MONTIMING_POLARITY = 2'b11;
     // TRIG goes negative: so to get a positive trigger, we put TRIG on the negative
     // side and THRESH on the positive side. Normally, TRIG > THRESH so it's
     // zero. If trig goes below thresh, then it's positive.
     // So POLARITY is 1 whenever TRIG is going into a P input.
-    localparam [23:0] TRIG_POLARITY =    24'b011011001001001010010110;
+    localparam [23:0] TRIG_POLARITY =       24'b011011001001001010010110;
 
     // this is the CPLD montiming polarity. We fix it here just to allow the paths to all be identical.
     // Probably unimportant, but whatever.
-    localparam [23:0] CPLD_MT_POLARITY = 24'b010011100001010011100001;
+    localparam [23:0] CPLD_MT_POLARITY =    24'b010011100001010011100001;
         
         
     // polarity of the DOE inputs        
-    localparam [23:0] DOE_POLARITY = 24'b0;
+    localparam [23:0] DOE_POLARITY =        24'b001011111110000001111001;
     
     // polarity of the SRCLK outputs
     localparam [1:0] SRCLK_POLARITY = 2'b00;
@@ -250,7 +248,7 @@ module radiant_top( input SYS_CLK_P,
                                    .WCLK_N(WCLK_N),
                                    .SHOUT(shout),
                                    .WR(WR));
-    par_lab4d_ram #(.NUM_SS_INCR(2),.NUM_SRCLK(2),.SRCLK_POLARITY(SRCLK_POLARITY),.NUM_LAB4(24),.DOE_POLARITY(DOE_POLARITY))
+    par_lab4d_ram #(.NUM_SS_INCR(2),.NUM_SRCLK(2),.SRCLK_POLARITY(SRCLK_POLARITY),.NUM_LAB4(24),.DOE_POLARITY(DOE_POLARITY),.SRCLK_DIFFERENTIAL("FALSE"))
             u_l4ram(.clk_i(CLK50),
                     .rst_i(1'b0),
                     `WBS_CONNECT(l4_ram, wb),
@@ -268,9 +266,10 @@ module radiant_top( input SYS_CLK_P,
                     .complete_o(readout_complete),
                     .DOE_LVDS_P(DOE_P),
                     .DOE_LVDS_N(DOE_N),
-                    .SS_INCR(SS_INCR),
-                    .SRCLK_P(SRCLK_P),
-                    .SRCLK_N(SRCLK_N));
+                    .SS_INCR(ss_incr),
+                    .SRCLK_P(SRCLK),
+                    // not differential
+                    .SRCLK_N());
                                                                                   
     radiant_trig_top #(.TRIG_POLARITY(TRIG_POLARITY)) u_trig(.clk_i(CLK50),.rst_i(1'b0),
                                                              `WBS_CONNECT(trig, wb),

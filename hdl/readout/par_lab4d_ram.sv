@@ -10,6 +10,7 @@
 module par_lab4d_ram #(
         parameter NUM_SS_INCR = 2,
         parameter NUM_SRCLK = 2,
+        parameter SRCLK_DIFFERENTIAL = "TRUE",
         parameter [NUM_SRCLK-1:0] SRCLK_POLARITY = {NUM_SRCLK{1'b0}},
         parameter NUM_LAB4 = 24,
         parameter [NUM_LAB4-1:0] DOE_POLARITY = {NUM_LAB4{1'b0}},
@@ -54,12 +55,18 @@ module par_lab4d_ram #(
 		genvar kk;
 		for (kk=0;kk<NUM_LAB4;kk=kk+1) begin : DIFFLOOP
 			// Polarity swap means we just swap the Ns and Ps. The actual polarity of the SRCLK[kk] signal is swapped in the shift register.
-			if (SRCLK_POLARITY[kk] == 0) begin : POS
-				OBUFDS u_srclk_p(.I(SRCLK[kk]),.O(SRCLK_P[kk]),.OB(SRCLK_N[kk]));
-			end else begin : NEG
-				OBUFDS u_srclk_n(.I(SRCLK[kk]),.O(SRCLK_N[kk]),.OB(SRCLK_P[kk]));
-			end
-			if (DOE_POLARITY[kk] == 0) begin : DOEPOS
+			if (SRCLK_DIFFERENTIAL == "TRUE") begin : DIFF
+                if (SRCLK_POLARITY[kk] == 0) begin : POS
+                    OBUFDS u_srclk_p(.I(SRCLK[kk]),.O(SRCLK_P[kk]),.OB(SRCLK_N[kk]));
+                end else begin : NEG
+                    OBUFDS u_srclk_n(.I(SRCLK[kk]),.O(SRCLK_N[kk]),.OB(SRCLK_P[kk]));
+                end
+            end else begin : SE
+                // Just... no bufs.
+                assign SRCLK_P[kk] = SRCLK[kk];
+                assign SRCLK_N[kk] = ~SRCLK[kk];
+            end
+            if (DOE_POLARITY[kk] == 0) begin : DOEPOS
 				IBUFDS_DIFF_OUT u_doe_p(.I(DOE_LVDS_P[kk]),.IB(DOE_LVDS_N[kk]),.O(DOE[kk]),.OB(DOE_B[kk]));
 			end else begin : DOENEG
 				IBUFDS_DIFF_OUT u_doe_n(.I(DOE_LVDS_N[kk]),.IB(DOE_LVDS_P[kk]),.O(DOE_B[kk]),.OB(DOE[kk]));
@@ -205,7 +212,7 @@ module par_lab4d_ram #(
 	wire dbg_srclk;
 	wire [6:0] sample_counter;
 	wire [3:0] bit_counter;
-	par_lab4d_data_shift_register #(.NUM_LAB4(NUM_LAB4),.NUM_SS_INCR(NUM_SS_INCR),.NUM_SRCLK(NUM_SRCLK))
+	par_lab4d_data_shift_register #(.NUM_LAB4(NUM_LAB4),.NUM_SS_INCR(NUM_SS_INCR),.NUM_SRCLK(NUM_SRCLK),.SRCLK_DIFFERENTIAL(SRCLK_DIFFERENTIAL))
 	                                          u_shreg(.sys_clk_i(sys_clk_i),.wclk_i(wclk_i),
 													  .readout_i(readout_i),.readout_rst_i(readout_rst_i),
 													  .done_o(complete_o),.dat_o(data),
