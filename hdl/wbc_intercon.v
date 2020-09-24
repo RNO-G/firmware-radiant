@@ -1,5 +1,6 @@
 `timescale 1ns / 1ps
 `include "wishbone.vh"
+`include "radiant_debug.vh"
 // Simple WISHBONE interconnect.
 // We have 4MB of register space.
 // The full space of 24 LAB4Ds is 192 kB, or 48k qwords,
@@ -8,28 +9,29 @@ module wbc_intercon(
 		input clk_i,
 		input rst_i,
 		// Masters.
-		`WBS_NAMED_PORT(bmc, 32, 20, 4),
-		`WBS_NAMED_PORT(spic, 32, 20, 4),
-		`WBS_NAMED_PORT(pciec, 32, 20, 4),
+		`WBS_NAMED_PORT(bmc, 32, 22, 4),
+		`WBS_NAMED_PORT(spic, 32, 22, 4),
+		`WBS_NAMED_PORT(pciec, 32, 22, 4),
 		// Slaves. 
 		`WBM_NAMED_PORT(rad_id_ctrl, 32, 16, 4),
 		`WBM_NAMED_PORT(l4_ctrl, 32, 16, 4),
 		`WBM_NAMED_PORT(l4_ram, 32, 16, 4),
 		`WBM_NAMED_PORT(trig, 32, 16, 4),
-		`WBM_NAMED_PORT(scal, 32, 16, 4),
-		output [70:0] debug_o
+		`WBM_NAMED_PORT(scal, 32, 16, 4)
     );
 
-	localparam [19:0] RAD_ID_CTRL_BASE     = 20'h00000;
-	localparam [19:0] RAD_ID_CTRL_MASK     = 20'h8FFFF;	// match x000: 0x00000-0x0FFFF, shadowed at 0x80000-0x8FFFF
-	localparam [19:0] L4_CTRL_BASE         = 20'h10000;
-	localparam [19:0] L4_CTRL_MASK	       = 20'h8FFFF;	// match x001: 0x10000-0x1FFFF, shadowed at 0x90000-0x9FFFF
-	localparam [19:0] L4_RAM_BASE		   = 20'h20000;	
-	localparam [19:0] L4_RAM_MASK		   = 20'h8FFFF;	// match x010: 0x20000-0x2FFFF, shadowed at 0xA0000-0xAFFFF
-	localparam [19:0] TRIG_BASE			   = 20'h30000;
-	localparam [19:0] TRIG_MASK			   = 20'h8FFFF;	// match x011: 0x30000-0x3FFFF, shadowed at 0xB0000-0xBFFFF
-	localparam [19:0] SCAL_BASE			   = 20'h40000;
-	localparam [19:0] SCAL_MASK			   = 20'hBFFFF;	// match x1xx: 0x40000-0x7FFFF, shadowed at 0xC0000-0xFFFFF
+    parameter DEBUG = `WBC_INTERCON_DEBUG;
+
+	localparam [19:0] RAD_ID_CTRL_BASE     = 22'h000000;
+	localparam [19:0] RAD_ID_CTRL_MASK     = 22'h38FFFF;	// match xx x000: 0x00000-0x0FFFF, shadowed at 0x80000-0x8FFFF
+	localparam [19:0] L4_CTRL_BASE         = 22'h010000;
+	localparam [19:0] L4_CTRL_MASK	       = 22'h38FFFF;	// match xx x001: 0x10000-0x1FFFF, shadowed at 0x90000-0x9FFFF
+	localparam [19:0] L4_RAM_BASE		   = 22'h020000;	
+	localparam [19:0] L4_RAM_MASK		   = 22'h38FFFF;	// match xx x010: 0x20000-0x2FFFF, shadowed at 0xA0000-0xAFFFF
+	localparam [19:0] TRIG_BASE			   = 22'h030000;
+	localparam [19:0] TRIG_MASK			   = 22'h38FFFF;	// match xx x011: 0x30000-0x3FFFF, shadowed at 0xB0000-0xBFFFF
+	localparam [19:0] SCAL_BASE			   = 22'h040000;
+	localparam [19:0] SCAL_MASK			   = 22'h3BFFFF;	// match xx x1xx: 0x40000-0x7FFFF, shadowed at 0xC0000-0xFFFFF
 
 	wire bmc_gnt;
 	wire spic_gnt;
@@ -41,6 +43,7 @@ module wbc_intercon(
 //							.req2(pciec_cyc_i),.gnt2(pciec_gnt),
 //							.req3(wbvio_cyc_i),.gnt3(wbvio_gnt));							
 	// Switch to expandable round-robin arbiter
+    localparam NUM_SLAVES = 5;
 	localparam NUM_MASTERS = 3;
 	wire [NUM_MASTERS-1:0] requests;
 	wire [NUM_MASTERS-1:0] grants;
@@ -80,7 +83,7 @@ module wbc_intercon(
 	assign errs = {NUM_MASTERS{muxed_err}} & grants;
 	
 	// The multiplexed addresses, data, and selects are harder.
-	reg [19:0] adr;
+	reg [21:0] adr;
 	reg [31:0] dat_o;
 	reg [3:0] sel;
 	always @(*) begin
@@ -158,16 +161,15 @@ module wbc_intercon(
 //	reg [3:0] sel;
 
 	reg [31:0] wbc_debug_data = {32{1'b0}};
-	reg [19:0] wbc_debug_adr = {20{1'b0}};
+	reg [21:0] wbc_debug_adr = {22{1'b0}};
 	reg [3:0] wbc_debug_sel = {4{1'b0}};
 	reg wbc_debug_cyc = 0;
 	reg wbc_debug_stb = 0;
 	reg wbc_debug_ack = 0;
 	reg wbc_debug_we = 0;
-	reg wbc_debug_err = 0;
-	reg wbc_debug_rty = 0;
+	reg wbc_debug_err_rty = 0;
 	reg [NUM_MASTERS-1:0] wbc_debug_gnt = {NUM_MASTERS{1'b0}};
-	
+	reg [NUM_SLAVES-1:0] wbc_debug_ssel = {NUM_SLAVES{1'b0}};
 	always @(posedge clk_i) begin
 		if (we) wbc_debug_data <= dat_o;
 		else wbc_debug_data <= muxed_dat_i;
@@ -178,19 +180,23 @@ module wbc_intercon(
 		wbc_debug_stb <= stb;
 		wbc_debug_we <= we;
 		wbc_debug_ack <= muxed_ack;
-		wbc_debug_err <= muxed_err;
-		wbc_debug_rty <= muxed_rty;
+		wbc_debug_err_rty <= muxed_err | muxed_rty;
 		wbc_debug_gnt <= grants;
+		wbc_debug_ssel <= { sel_scal, sel_trig, sel_l4_ram, sel_l4_ctrl, sel_rad_id_ctrl };
 	end
-	assign debug_o[0 +: 32] = wbc_debug_data;
-	assign debug_o[32 +: 20] = wbc_debug_adr;
-	assign debug_o[52 +: 4] = wbc_debug_sel;
-	assign debug_o[56] = wbc_debug_cyc;
-	assign debug_o[57] = wbc_debug_stb;
-	assign debug_o[58] = wbc_debug_we;
-	assign debug_o[59] = wbc_debug_ack;
-	assign debug_o[60] = wbc_debug_err;
-	assign debug_o[61] = wbc_debug_rty;
-	assign debug_o[62 +: NUM_MASTERS] = wbc_debug_gnt;
-
+	generate
+	   if (DEBUG == "TRUE") begin : INTILA
+        intercon_ila u_ila(.clk(clk_i),
+                           .probe0(wbc_debug_data),
+                           .probe1(wbc_debug_adr),
+                           .probe2(wbc_debug_cyc),
+                           .probe3(wbc_debug_sel),
+                           .probe4(wbc_debug_stb),
+                           .probe5(wbc_debug_we),
+                           .probe6(wbc_debug_ack),
+                           .probe7(wbc_debug_err_rty),
+                           .probe8(wbc_debug_gnt),
+                           .probe9(wbc_debug_ssel));
+        end
+    endgenerate
 endmodule

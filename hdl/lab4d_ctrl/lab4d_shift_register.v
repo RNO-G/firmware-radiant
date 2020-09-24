@@ -1,4 +1,5 @@
 `timescale 1ns / 1ps
+`include "radiant_debug.vh"
 `include "lab4.vh"
 module lab4d_shift_register (
         clk_i,
@@ -13,6 +14,7 @@ module lab4d_shift_register (
         SIN,
         SCLK,
         PCLK);
+    parameter DEBUG = `LAB4D_SHIFT_REGISTER_DEBUG;
     parameter NUM_LABS = 24;
     parameter NUM_SCLK = 2;
     parameter NUM_SEL_BITS = 5;
@@ -37,6 +39,13 @@ module lab4d_shift_register (
 	reg [23:0] shift_reg = {24{1'b0}};
 	reg sclk_reg = 0;
 	reg pclk_reg = 0;
+	(* KEEP = "TRUE" *)
+	reg [NUM_SCLK-1:0] sclk_copy = {NUM_SCLK{1'b0}};
+	(* KEEP = "TRUE" *)
+	reg [NUM_LABS-1:0] pclk_copy = {NUM_LABS{1'b0}};
+	(* KEEP = "TRUE" *)
+	reg [NUM_LABS-1:0] sin_copy = {NUM_LABS{1'b0}};
+	
 	wire [NUM_LABS-1:0] lab_is_selected;
 	
 	localparam FSM_BITS = 4;
@@ -94,18 +103,30 @@ module lab4d_shift_register (
 		genvar i,j;
 		for (i=0;i<NUM_LABS;i=i+1) begin : LABS
 			assign lab_is_selected[i] = (sel_i == i) || &sel_i;
+
+            always @(posedge clk_i) begin : DBG
+                if (!lab_is_selected[i]) pclk_copy[i] <= 1'b0;
+                else pclk_copy[i] <= pclk_reg;
+                
+                if (!lab_is_selected[i]) sin_copy[i] <= 1'b0;
+                else sin_copy[i] <= shift_reg[23];
+            end						
 			(* IOB = "TRUE" *)
 			FDRE u_pclk(.D(pclk_reg),.C(clk_i),.R(!lab_is_selected[i]),.CE(1'b1),.Q(PCLK[i]));
 			(* IOB = "TRUE" *)
 			FDRE u_sin(.D(shift_reg[23]),.C(clk_i),.R(!lab_is_selected[i]),.CE(1'b1),.Q(SIN[i]));
 		end
 		for (j=0;j<NUM_SCLK;j=j+1) begin : SCLKS
+		    always @(posedge clk_i) begin : DBG
+		      if (state == IDLE) sclk_copy[j] <= 1'b0;
+		      else sclk_copy[j] <= sclk_reg;
+            end
 		    (* IOB = "TRUE" *)
 			FDRE u_sclk(.D(sclk_reg),.C(clk_i),.R((state==IDLE)),.CE(1'b1),.Q(SCLK[j]));
         end
 	endgenerate
-	assign dbg_sin_o = shift_reg[23];
-	assign dbg_sclk_o = sclk_reg;
-	assign dbg_pclk_o = pclk_reg;
+    lab4d_shift_register_ila u_ila(.clk(clk_i),.probe0(sin_copy),.probe1(pclk_copy),.probe2(sclk_copy),.probe3(go_i));
+
+
 	assign busy_o = (state != IDLE);
 endmodule

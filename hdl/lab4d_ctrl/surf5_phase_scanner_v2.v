@@ -1,6 +1,8 @@
 `timescale 1ns / 1ps
 `include "wishbone.vh"
-module surf5_phase_scanner_v2 #(parameter NUM_MONTIMING=2)(
+`include "radiant_debug.vh"
+
+module surf5_phase_scanner_v2 #(parameter NUM_MONTIMING=2,parameter DEBUG=`PHASE_SCANNER_DEBUG)(
 		input clk_i,
 		input rst_i,
 		`WBS_NAMED_PORT(wb, 32, 3, 4),
@@ -9,13 +11,13 @@ module surf5_phase_scanner_v2 #(parameter NUM_MONTIMING=2)(
 		output ps_en_o,
 		output ps_incdec_o,
 		input ps_done_i,
+		input [NUM_MONTIMING-1:0] invert_i,
 		input [NUM_MONTIMING-1:0] MONTIMING_B,
 		input	sync_i,
 		inout sync_mon_io,
 		output [14:0] debug_o,
 		output [70:0] debug2_o
     );
-
     localparam MAX_NUM_MONTIMING = 12;
 
 	assign ps_clk_o = clk_i;
@@ -202,6 +204,14 @@ module surf5_phase_scanner_v2 #(parameter NUM_MONTIMING=2)(
 											 .bram_we_i(bram_we && bram_we_enable),.bram_adr_i(bram_address_reg),
 											 .bram_dat_i(bram_data_reg),.bram_dat_o(bram_readback),
 											 .bram_rd_i(1'b1),.clk(clk_i));	
+
+    phaseshift_ila u_ila(.clk(clk_i),
+                         .probe0(montiming_q_clk),
+                         .probe1(sync_q_clk),
+                         .probe2(scan_valid),
+                         .probe3(scan_done));    
+    
+
 // redo this crap
 //	assign debug_o[0 +: 12] = montiming_q_clk;
 //	assign debug_o[12] = sync_q_clk;

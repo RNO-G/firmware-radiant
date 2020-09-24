@@ -19,7 +19,7 @@
 // Internal address range is 0x0000-0xFFFF.
 // 0x0000: Device ID   ('RDNT')
 // 0x0004: Firmware ID (standard day/month/major/minor/revision packing)
-// 0x0008: unused
+// 0x0008: CPLD control register.
 // 0x000C: unused
 // 0x0010: PPS selection register.
 // 0x0014: Reset register (global reset)
@@ -37,6 +37,8 @@
 //         register 0x0030 = 0) before performing any real SPI transactions.
 `include "wishbone.vh"
 `include "lab4.vh"
+`include "radiant_debug.vh"
+
 module rad_id_ctrl(
 		input clk_i,
 		input rst_i,
@@ -66,6 +68,8 @@ module rad_id_ctrl(
         
         // static WR value when in reset
         output [`LAB4_WR_WIDTH-1:0] reset_wr_o,
+		// indicates that we're selecting an inverted MONTIMING
+		output [1:0] invert_montiming_o,		
 		
         // internal LED signal
         input [0:0] internal_led_i,
@@ -83,6 +87,9 @@ module rad_id_ctrl(
         output [1:0] SCLK_TCK,
         output [1:0] CCLK_TMS,
 
+        // clock sel
+        output [1:0] SST_SEL,
+
 		// SPI
 		output MOSI,
 		input MISO,
@@ -92,6 +99,11 @@ module rad_id_ctrl(
 
 		parameter DEVICE = "RDNT";
 		parameter VERSION = 32'h00000000;
+		
+		parameter JTAG_DEBUG = `RAD_ID_CTRL_JTAG_DEBUG;
+		parameter SPI_DEBUG = `RAD_ID_CTRL_SPI_DEBUG;
+		
+		parameter [23:0] MONTIMING_POLARITY = {24{1'b0}};
 
 		// Device DNA (used for identification)
 		wire dna_data;
@@ -128,6 +140,9 @@ module rad_id_ctrl(
                                       {(8-CBIT_COUNT){1'b0}}, cpld_ctrl[0 +: CBIT_COUNT]};
         reg [5:0] cclk_count = {6{1'b0}};
         reg [2*LOG2_CBIT_COUNT-1:0] cbit_count = {2*LOG2_CBIT_COUNT{1'b0}};
+        
+        assign invert_montiming_o[0] = (MONTIMING_POLARITY[ cpld_ctrl_reg[2:0] ]);
+        assign invert_montiming_o[1] = (MONTIMING_POLARITY[ 12+cpld_ctrl_reg[CBIT_COUNT +: 3] ]);            
 
 		reg [31:0] reset_reg = {32{1'b0}};
 		reg [31:0] pps_sel_reg = {32{1'b0}};
@@ -274,17 +289,20 @@ module rad_id_ctrl(
         reg [1:0] cclk_tms_reg = {2{1'b0}};
         (* KEEP = "TRUE" *)
         reg [1:0] cclk_tms_reg_copy = {2{1'b0}};
-
-        jtag_ila u_jtag_ila(.clk(clk_i),
-                            .probe0(enable_sequence),
-                            .probe1(sequence_running),
-                            .probe2(nbit_count),
-                            .probe3(sclk_count),
-                            .probe4(cdat_tdi_reg_copy),
-                            .probe5(sclk_tck_reg_copy),
-                            .probe6(cclk_tms_reg_copy),
-                            .probe7(ssincr_tdo_reg));        
-
+        generate
+            if (JTAG_DEBUG=="TRUE") begin : JTGILA
+                jtag_ila u_jtag_ila(.clk(clk_i),
+                                    .probe0(enable_sequence),
+                                    .probe1(sequence_running),
+                                    .probe2(nbit_count),
+                                    .probe3(sclk_count),
+                                    .probe4(cdat_tdi_reg_copy),
+                                    .probe5(sclk_tck_reg_copy),
+                                    .probe6(cclk_tms_reg_copy),
+                                    .probe7(ssincr_tdo_reg));        
+            end
+        endgenerate
+    
 //        // JTAG signals. 1=right, 0=left
 //        inout  [1:0] SSINCR_TDO,
 //        output [1:0] CDAT_TDI,
@@ -577,21 +595,26 @@ module rad_id_ctrl(
 							  .sck_o(spi_sck),
 							  .mosi_o(MOSI),
 							  .miso_i(MISO));
-        spi_ila u_spi_ila(.clk(clk_i),
-                            .probe0( spi_sck ),
-                            .probe1( CS_B ),
-                            .probe2( MOSI ),
-                            .probe3( MISO ));
-		STARTUPE2 #(.PROG_USR("FALSE")) u_startupe2(.CLK(1'b0),
-									 .GSR(1'b0),
-									 .GTS(1'b0),
-									 .KEYCLEARB(1'b0),
-									 .PACK(1'b0),
-									 .USRCCLKO(spi_sck),
-									 .USRCCLKTS(1'b0),
-									 .USRDONEO(1'b1),
-									 .USRDONETS(1'b1));
-		// Device DNA.
+
+        generate
+            if (SPI_DEBUG=="TRUE") begin : SPIILA
+                spi_ila u_spi_ila(.clk(clk_i),
+                                    .probe0( spi_sck ),
+                                    .probe1( CS_B ),
+                                    .probe2( MOSI ),
+                                    .probe3( MISO ));
+            end
+        endgenerate
+        STARTUPE2 #(.PROG_USR("FALSE")) u_startupe2(.CLK(1'b0),
+                                 .GSR(1'b0),
+                                 .GTS(1'b0),
+                                 .KEYCLEARB(1'b0),
+                                 .PACK(1'b0),
+                                 .USRCCLKO(spi_sck),
+                                 .USRCCLKTS(1'b0),
+                                 .USRDONEO(1'b1),
+                                 .USRDONETS(1'b1));
+    // Device DNA.
 		DNA_PORT u_dna(.DIN(1'b0),.READ(read_reg),.SHIFT(shift_reg),.CLK(clk_i),.DOUT(dna_data));		
 		always @(posedge clk_i) begin
 			if (sel_dna && ~wb_we_i && wb_ack_o) shift_reg <= 1;
@@ -603,4 +626,6 @@ module rad_id_ctrl(
 		assign CS_B = !spiss_reg[0];		
 		assign CS_B_alt = !spiss_reg[0];
         assign shout_o = ssincr_tdo_reg;
+        
+        assign SST_SEL = ~reset_reg[30:29];
 endmodule

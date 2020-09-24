@@ -1,4 +1,5 @@
 `timescale 1ns / 1ps
+`include "radiant_debug.vh"
 module boardman_interface(
         input clk,
         input rst,
@@ -19,7 +20,8 @@ module boardman_interface(
         input BM_RX,
         output BM_TX        
     );
-        
+    parameter DEBUG = `BOARDMAN_INTERFACE_DEBUG;
+            
     parameter CLOCK_RATE = 100000000;
     parameter BAUD_RATE = 1000000;    
     
@@ -306,27 +308,30 @@ module boardman_interface(
                                 .m_axis_tdata(cobs_tx_tdata),
                                 .m_axis_tready(cobs_tx_tready),
                                 .m_axis_tvalid(cobs_tx_tvalid));
-                                                                                                                                
-    cobs_ila u_ila(.clk(clk),.probe0(axis_rx_tdata),
-                             .probe1(axis_rx_tuser),
-                             .probe2(axis_rx_tvalid),
-                             .probe3(axis_rx_tlast),
-                             .probe4(axis_rx_tready),
-                             .probe5(state),
-                             .probe6(adr_o),
-                             .probe7(en_o),
-                             .probe8(wr_o),
-                             .probe9(wstrb_o),
-                             .probe10(dat_o),
-                             .probe11(dat_i),
-                             .probe12(axis_tx_tdata),
-                             .probe13(axis_tx_tvalid),
-                             .probe14(axis_tx_tready),
-                             .probe15(axis_tx_tlast),
-                             .probe16(cobs_tx_tdata),
-                             .probe17(cobs_tx_tready),
-                             .probe18(cobs_tx_tvalid));
-
+    generate
+        if (DEBUG == "TRUE") begin : COBSILA                                                                                                                            
+            cobs_ila u_ila(.clk(clk),.probe0(axis_rx_tdata),
+                                     .probe1(axis_rx_tuser),
+                                     .probe2(axis_rx_tvalid),
+                                     .probe3(axis_rx_tlast),
+                                     .probe4(axis_rx_tready),
+                                     .probe5(state),
+                                     .probe6(adr_o),
+                                     .probe7(en_o),
+                                     .probe8(wr_o),
+                                     .probe9(wstrb_o),
+                                     .probe10(dat_o),
+                                     .probe11(dat_i),
+                                     .probe12(axis_tx_tdata),
+                                     .probe13(axis_tx_tvalid),
+                                     .probe14(axis_tx_tready),
+                                     .probe15(axis_tx_tlast),
+                                     .probe16(cobs_tx_tdata),
+                                     .probe17(cobs_tx_tready),
+                                     .probe18(cobs_tx_tvalid));
+         end
+     endgenerate
+    
     // tready generation. Does NOT happen in IDLE.
     // The state names describe what's currently on the TDATA busses.
     assign axis_rx_tready = (state == ADDR2 || state == ADDR1 || 

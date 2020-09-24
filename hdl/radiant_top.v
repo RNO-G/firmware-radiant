@@ -22,11 +22,24 @@ module radiant_top( input SYS_CLK_P,
                     
                     output [19:0] WR,
 
+                    output [1:0] SRCLK_P,
+                    output [1:0] SRCLK_N,
+                    output [1:0] SS_INCR,
+                    
+                    input [23:0] DOE_P,
+                    input [23:0] DOE_N,
+
                     input [1:0] MONTIMING_P,
                     input [1:0] MONTIMING_N,
                     inout SYNCMON,
                     
                     output REGCLR,
+                    
+                    output [1:0] SST_SEL,
+                    
+                    input [23:0] TRIG,
+                    input [23:0] THRESH,
+                    output [23:0] THRESH_PWM,
 
                     output JTAGENB,
                     output MOSI,
@@ -45,9 +58,25 @@ module radiant_top( input SYS_CLK_P,
     parameter [15:0] FIRMWARE_DATE = {16{1'b0}};
     localparam [31:0] DATEVERSION = { FIRMWARE_DATE, FIRMWARE_VERSION };
 
-    localparam [23:0] WCLK_POLARITY = 24'b000101111111000100110011;
+    localparam [23:0] WCLK_POLARITY =    24'b000101111111000100110011;
     localparam [1:0] MONTIMING_POLARITY = 2'b11;
+    // TRIG goes negative: so to get a positive trigger, we put TRIG on the negative
+    // side and THRESH on the positive side. Normally, TRIG > THRESH so it's
+    // zero. If trig goes below thresh, then it's positive.
+    // So POLARITY is 1 whenever TRIG is going into a P input.
+    localparam [23:0] TRIG_POLARITY =    24'b011011001001001010010110;
 
+    // this is the CPLD montiming polarity. We fix it here just to allow the paths to all be identical.
+    // Probably unimportant, but whatever.
+    localparam [23:0] CPLD_MT_POLARITY = 24'b010011100001010011100001;
+        
+        
+    // polarity of the DOE inputs        
+    localparam [23:0] DOE_POLARITY = 24'b0;
+    
+    // polarity of the SRCLK outputs
+    localparam [1:0] SRCLK_POLARITY = 2'b00;
+        
     // sysclk coming in is 25 MHz.
     wire sysclk_in;
     // sysclk is 100 MHz
@@ -78,12 +107,10 @@ module radiant_top( input SYS_CLK_P,
     `WB_DEFINE( trig, 32, 16, 4);
     `WB_DEFINE( scal, 32, 16, 4);
     
-    `WBM_KILL( l4_ram, 32);
-    `WBM_KILL( trig, 32);
     `WBM_KILL( scal, 32);
     
-    `WB_KILL(spic, 32, 20, 4);
-    `WB_KILL(pciec, 32, 20, 4);
+    `WB_KILL(spic, 32, 22, 4);
+    `WB_KILL(pciec, 32, 22, 4);
         
     // The boardman_interface is "close enough" to a WISHBONE classic interface, we just set
     // reg_en = cyc = stb
@@ -91,7 +118,7 @@ module radiant_top( input SYS_CLK_P,
     // wstrb = sel
     // and set ack_i = (ack | err | rty)
     assign bmc_cyc_o = bmc_stb_o;
-    // it's always a 32-bit interface
+    // it's always a 32-bit interface, the interface's low bits just generate the byte enables.
     assign bmc_adr_o[1:0] = 2'b00;
     boardman_interface #(.CLOCK_RATE(50000000),.BAUD_RATE(115200)) u_bmif(.clk(CLK50),.rst(1'b0),.BM_RX(BM_RX),.BM_TX(BM_TX),
                                                                           .adr_o(bmc_adr_o[21:2]),
@@ -116,7 +143,8 @@ module radiant_top( input SYS_CLK_P,
     wire [1:0] sclk;
     wire [1:0] shout;
     wire [`LAB4_WR_WIDTH-1:0] reset_wr;
-    rad_id_ctrl #(.DEVICE(IDENT),.VERSION(DATEVERSION)) u_id(.clk_i(CLK50),.rst_i(1'b0),
+    wire [1:0] invert_montiming;
+    rad_id_ctrl #(.DEVICE(IDENT),.VERSION(DATEVERSION),.MONTIMING_POLARITY(CPLD_MT_POLARITY)) u_id(.clk_i(CLK50),.rst_i(1'b0),
                      `WBS_CONNECT( rad_id_ctrl, wb ),
                      .sys_clk_in(sysclk_in),
                      .sys_clk_o(sysclk),
@@ -127,6 +155,7 @@ module radiant_top( input SYS_CLK_P,
                      .wclk_o(wclk),
                      
                      .reset_wr_o(reset_wr),
+                     .invert_montiming_o(invert_montiming),
                      
                      .sys_clk_div8_ps_o(sysclk_div8_ps),
                      .ps_clk_i(ps_clk),
@@ -139,6 +168,7 @@ module radiant_top( input SYS_CLK_P,
                      .sclk_i(sclk),
                      .shout_o(shout),
                      .JTAGENB(JTAGENB),
+                     .SST_SEL(SST_SEL),
                      .SSINCR_TDO(SSINCR_TDO),
                      .CDAT_TDI(CDAT_TDI),
                      .SCLK_TCK(SCLK_TCK),
@@ -164,7 +194,6 @@ module radiant_top( input SYS_CLK_P,
     endgenerate
     always @(posedge sysclk) montiming_reg <= montiming;
     
-    // unuseds for now
     wire readout;
     wire [3:0] readout_header;
     wire readout_test_pattern;
@@ -173,8 +202,8 @@ module radiant_top( input SYS_CLK_P,
     wire [23:0] readout_fifo_empty = {24{1'b0}};
     wire [9:0] readout_empty_size;
     wire [3:0] readout_prescale;
-    wire readout_complete = 1'b1;
-    wire trigger_in = 1'b0;
+    wire readout_complete;
+    wire trigger_in;
     lab4d_controller #(.NUM_LABS(24),.NUM_MONTIMING(2),.NUM_SCLK(2),.NUM_REGCLR(1),.NUM_RAMP(2),
                        .NUM_SHOUT(2),.NUM_WR(4),.WCLK_POLARITY(WCLK_POLARITY))    
                      u_controller( .clk_i(CLK50),
@@ -187,6 +216,7 @@ module radiant_top( input SYS_CLK_P,
                                    .wclk_i(wclk),
                                    
                                    .reset_wr_i(reset_wr),
+                                   .invert_montiming_i(invert_montiming),
                                    
                                    .trig_i(trigger_in),
                                    
@@ -220,7 +250,34 @@ module radiant_top( input SYS_CLK_P,
                                    .WCLK_N(WCLK_N),
                                    .SHOUT(shout),
                                    .WR(WR));
-                                   
+    par_lab4d_ram #(.NUM_SS_INCR(2),.NUM_SRCLK(2),.SRCLK_POLARITY(SRCLK_POLARITY),.NUM_LAB4(24),.DOE_POLARITY(DOE_POLARITY))
+            u_l4ram(.clk_i(CLK50),
+                    .rst_i(1'b0),
+                    `WBS_CONNECT(l4_ram, wb),
+                    `WBS_CONNECT(spic, wbdma),
+                    .sys_clk_i(sysclk),
+                    .wclk_i(wclk),
+                    .readout_test_pattern_i(readout_test_pattern),
+                    .readout_i(readout),
+                    .readout_header_i(readout_header),
+                    .readout_rst_i(readout_rst),
+                    .readout_fifo_rst_i(readout_fifo_rst),
+                    .readout_empty_size_i(readout_empty_size),
+                    .readout_fifo_empty_o(readout_fifo_empty),
+                    .prescale_i(readout_prescale),
+                    .complete_o(readout_complete),
+                    .DOE_LVDS_P(DOE_P),
+                    .DOE_LVDS_N(DOE_N),
+                    .SS_INCR(SS_INCR),
+                    .SRCLK_P(SRCLK_P),
+                    .SRCLK_N(SRCLK_N));
+                                                                                  
+    radiant_trig_top #(.TRIG_POLARITY(TRIG_POLARITY)) u_trig(.clk_i(CLK50),.rst_i(1'b0),
+                                                             `WBS_CONNECT(trig, wb),
+                                                             .pwm_clk_i(wclk),
+                                                             .TRIG(TRIG),
+                                                             .THRESH(THRESH),
+                                                             .THRESH_PWM(THRESH_PWM));                                  
     
     reg [24:0] counter = {25{1'b0}};
     

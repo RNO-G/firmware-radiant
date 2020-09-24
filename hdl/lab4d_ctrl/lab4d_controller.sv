@@ -32,6 +32,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		input trig_i,
 		
 		input [`LAB4_WR_WIDTH-1:0] reset_wr_i,
+		input [NUM_MONTIMING-1:0] invert_montiming_i,
 		
 		input clk_ps_i,
 		output ps_clk_o,
@@ -62,6 +63,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		output [NUM_LABS-1:0] WCLK_N,
 		input [NUM_SHOUT-1:0] SHOUT,
 		output [`LAB4_WR_WIDTH*NUM_WR-1:0] WR,
+		
 		output [70:0] debug_o,
 		output [70:0] debug2_o,
 		output [15:0] trigger_debug_o,
@@ -191,7 +193,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	assign readout_prescale_register = {{28{1'b0}},readout_prescale};
 
 	reg [7:0] shift_prescale = SHIFT_PRESCALE_DEFAULT;
-	assign shift_prescale_register = {{24{1'b0}},shift_prescale_register};
+	assign shift_prescale_register = {{24{1'b0}},shift_prescale};
 
 	reg update_wilkinson = 0;
 
@@ -428,6 +430,13 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		end else begin
 			lab4_wilk_reset <= 0;
 		end
+		
+		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h04)) begin
+		  shift_prescale <= wb_dat_i[7:0];
+        end
+        if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h08)) begin
+          readout_prescale <= wb_dat_i[7:0];
+        end
 				
 		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h18)) begin
 			lab4_user_write <= wb_dat_i[0 +: 24];
@@ -487,18 +496,12 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		if (readout_header_write_sysclk) readout_header_sysclk <= readout_header_clk;
 	end
 
-	wire dbg_sin;
-	wire dbg_sclk;
-	wire dbg_pclk;
 	lab4d_shift_register #(.NUM_LABS(NUM_LABS),.NUM_SCLK(NUM_SCLK)) u_shift_reg(.clk_i(clk_i),
 												.go_i(lab4_serial_go),
 												.dat_i(lab4_serial_register),
 												.sel_i(lab4_serial_select),
 												.prescale_i(shift_prescale),
 												.busy_o(lab4_serial_busy),
-												.dbg_sin_o(dbg_sin),
-												.dbg_sclk_o(dbg_sclk),
-												.dbg_pclk_o(dbg_pclk),
 												.SIN(SIN),
 												.SCLK(SCLK),
 												.PCLK(PCLK));
@@ -563,6 +566,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 														.ps_en_o(ps_en_o),
 														.ps_incdec_o(ps_incdec_o),
 														.ps_done_i(ps_done_i),
+														.invert_i(invert_montiming_i),
 														.MONTIMING_B(MONTIMING_B),
 														.sync_i(sync_i),
 														.sync_mon_io(sync_mon_io),
@@ -599,6 +603,9 @@ module lab4d_controller #(parameter NUM_LABS=24,
 //	assign debug_o[46] = bram_we_enable;
 //	assign debug_o[47 +: 8] = pb_port;
 //	assign debug_o[55] = dbg_ramp;
+
+    lab4d_sysclk_ila u_ila(.clk(sys_clk_i),
+                           .probe0(montiming_i));
 
 	assign readout_header_o = readout_header_sysclk;
 	assign readout_fifo_rst_o = readout_fifo_reset;
