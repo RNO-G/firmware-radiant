@@ -212,7 +212,7 @@ module par_lab4d_ram #(
 	wire dbg_srclk;
 	wire [6:0] sample_counter;
 	wire [3:0] bit_counter;
-	par_lab4d_data_shift_register #(.NUM_LAB4(NUM_LAB4),.NUM_SS_INCR(NUM_SS_INCR),.NUM_SRCLK(NUM_SRCLK),.SRCLK_DIFFERENTIAL(SRCLK_DIFFERENTIAL))
+	par_lab4d_data_shift_register #(.NUM_LAB4(NUM_LAB4),.NUM_SS_INCR(NUM_SS_INCR),.NUM_SRCLK(NUM_SRCLK))
 	                                          u_shreg(.sys_clk_i(sys_clk_i),.wclk_i(wclk_i),
 													  .readout_i(readout_i),.readout_rst_i(readout_rst_i),
 													  .done_o(complete_o),.dat_o(data),
