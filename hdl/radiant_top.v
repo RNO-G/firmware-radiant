@@ -70,7 +70,7 @@ module radiant_top( input SYS_CLK_P,
         
         
     // polarity of the DOE inputs        
-    localparam [23:0] DOE_POLARITY =        24'b001011111110000001111001;
+    localparam [23:0] DOE_POLARITY =        24'b001001111110000001111001;
     
     // polarity of the SRCLK outputs
     localparam [1:0] SRCLK_POLARITY = 2'b00;
@@ -98,6 +98,7 @@ module radiant_top( input SYS_CLK_P,
     `WB_DEFINE( bmc , 32, 22, 4 );
     `WB_DEFINE( spic, 32, 22, 4 );
     `WB_DEFINE( pciec,32, 22, 4 );
+    `WB_DEFINE( spid, 32, 16, 4 );
     
     `WB_DEFINE( rad_id_ctrl, 32, 16, 4);
     `WB_DEFINE( l4_ctrl, 32, 16, 4);
@@ -197,7 +198,7 @@ module radiant_top( input SYS_CLK_P,
     wire readout_test_pattern;
     wire readout_fifo_rst;
     wire readout_rst;
-    wire [23:0] readout_fifo_empty = {24{1'b0}};
+    wire [23:0] readout_fifo_empty;
     wire [9:0] readout_empty_size;
     wire [3:0] readout_prescale;
     wire readout_complete;
@@ -252,7 +253,7 @@ module radiant_top( input SYS_CLK_P,
             u_l4ram(.clk_i(CLK50),
                     .rst_i(1'b0),
                     `WBS_CONNECT(l4_ram, wb),
-                    `WBS_CONNECT(spic, wbdma),
+                    `WBS_CONNECT(spid, wbdma),
                     .sys_clk_i(sysclk),
                     .wclk_i(wclk),
                     .readout_test_pattern_i(readout_test_pattern),

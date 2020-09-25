@@ -250,54 +250,54 @@ set_property -dict {IOSTANDARD LVCMOS25 SLEW SLOW DRIVE 4 PACKAGE_PIN L25} [get_
 set_property -dict {IOSTANDARD LVCMOS25 SLEW SLOW DRIVE 4 PACKAGE_PIN H17} [get_ports {SRCLK[0]}]
 set_property -dict {IOSTANDARD LVCMOS25 SLEW SLOW DRIVE 4 PACKAGE_PIN W19} [get_ports {SRCLK[1]}]
 
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN K23} [get_ports {DOE_P[0]}]   # 1  inverted
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN K22} [get_ports {DOE_N[0]}]   #
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN P23} [get_ports {DOE_P[1]}]   # 0  inverted
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN P24} [get_ports {DOE_N[1]}]   #
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN R20} [get_ports {DOE_P[2]}]   # 0  inverted
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN R21} [get_ports {DOE_N[2]}]   #
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN R22} [get_ports {DOE_P[3]}]   # 1  inverted
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN T22} [get_ports {DOE_N[3]}]   #
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN W23} [get_ports {DOE_P[4]}]   # 1  inverted
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN V23} [get_ports {DOE_N[4]}]   #
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN Y23} [get_ports {DOE_P[5]}]   # 1  inverted
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN Y22} [get_ports {DOE_N[5]}]   #
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN J20} [get_ports {DOE_P[6]}]   # 1  inverted
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN K20} [get_ports {DOE_N[6]}]   #
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN V18} [get_ports {DOE_P[7]}]   # 0
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN W18} [get_ports {DOE_N[7]}]   #
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN M15} [get_ports {DOE_P[8]}]   # 0
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN L15} [get_ports {DOE_N[8]}]   #
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN M16} [get_ports {DOE_P[9]}]   # 0
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN M17} [get_ports {DOE_N[9]}]   #
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN V16} [get_ports {DOE_P[10]}]  # 0
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN V17} [get_ports {DOE_N[10]}]  # 
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN M14} [get_ports {DOE_P[11]}]  # 0
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN L14} [get_ports {DOE_N[11]}]  # 
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN R8}  [get_ports {DOE_P[12]}]  # 0
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN P8}  [get_ports {DOE_N[12]}]  # 
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN P5}  [get_ports {DOE_P[13]}]  # 1
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN P6}  [get_ports {DOE_N[13]}]  # 
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN L4}  [get_ports {DOE_P[14]}]  # 1
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN M4}  [get_ports {DOE_N[14]}]  # 
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN H4}  [get_ports {DOE_P[15]}]  # 1
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN J4}  [get_ports {DOE_N[15]}]  # 
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN E3}  [get_ports {DOE_P[16]}]  # 1
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN F3}  [get_ports {DOE_N[16]}]  # 
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN D5}  [get_ports {DOE_P[17]}]  # 1
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN E5}  [get_ports {DOE_N[17]}]  # 
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN A20}  [get_ports {DOE_P[18]}] # 1
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN B20}  [get_ports {DOE_N[18]}] # 
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN C22}  [get_ports {DOE_P[19]}] # 1
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN C23}  [get_ports {DOE_N[19]}] # 
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN H21} [get_ports {DOE_P[20]}]  # 0
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN H22} [get_ports {DOE_N[20]}]  # 
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN G21} [get_ports {DOE_P[21]}]  # 1
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN G20} [get_ports {DOE_N[21]}]  # 
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN J23} [get_ports {DOE_P[22]}]  # 0
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN H23} [get_ports {DOE_N[22]}]  # 
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN M20} [get_ports {DOE_P[23]}]  # 0
-set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN L20} [get_ports {DOE_N[23]}]  # 
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN K23} [get_ports {DOE_P[0]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN K22} [get_ports {DOE_N[0]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN P23} [get_ports {DOE_P[1]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN P24} [get_ports {DOE_N[1]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN R20} [get_ports {DOE_P[2]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN R21} [get_ports {DOE_N[2]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN R22} [get_ports {DOE_P[3]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN T22} [get_ports {DOE_N[3]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN W23} [get_ports {DOE_P[4]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN V23} [get_ports {DOE_N[4]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN Y23} [get_ports {DOE_P[5]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN Y22} [get_ports {DOE_N[5]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN J20} [get_ports {DOE_P[6]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN K20} [get_ports {DOE_N[6]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN V18} [get_ports {DOE_P[7]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN W18} [get_ports {DOE_N[7]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN M15} [get_ports {DOE_P[8]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN L15} [get_ports {DOE_N[8]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN M16} [get_ports {DOE_P[9]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN M17} [get_ports {DOE_N[9]}]   
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN V16} [get_ports {DOE_P[10]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN V17} [get_ports {DOE_N[10]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN M14} [get_ports {DOE_P[11]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN L14} [get_ports {DOE_N[11]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN R8}  [get_ports {DOE_P[12]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN P8}  [get_ports {DOE_N[12]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN P5}  [get_ports {DOE_P[13]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN P6}  [get_ports {DOE_N[13]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN L4}  [get_ports {DOE_P[14]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN M4}  [get_ports {DOE_N[14]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN H4}  [get_ports {DOE_P[15]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN J4}  [get_ports {DOE_N[15]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN E3}  [get_ports {DOE_P[16]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN F3}  [get_ports {DOE_N[16]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN D5}  [get_ports {DOE_P[17]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN E5}  [get_ports {DOE_N[17]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN A20}  [get_ports {DOE_P[18]}] 
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN B20}  [get_ports {DOE_N[18]}] 
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN C22}  [get_ports {DOE_P[19]}] 
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN C23}  [get_ports {DOE_N[19]}] 
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN H21} [get_ports {DOE_P[20]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN H22} [get_ports {DOE_N[20]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN G21} [get_ports {DOE_P[21]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN G20} [get_ports {DOE_N[21]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN J23} [get_ports {DOE_P[22]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN H23} [get_ports {DOE_N[22]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN M20} [get_ports {DOE_P[23]}]  
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN L20} [get_ports {DOE_N[23]}]  
 
 
 set_property -dict {PACKAGE_PIN N18 IOSTANDARD LVCMOS25} [get_ports {SST_SEL[0]}]
