@@ -4,3 +4,6 @@
 [submodule "vivado_custom_ip"]
 	path = vivado_custom_ip
 	url = https://github.com/barawn/vivado_custom_ip
+[submodule "verilog-library-barawn"]
+	path = verilog-library-barawn
+	url = https://github.com/barawn/verilog-library-barawn
