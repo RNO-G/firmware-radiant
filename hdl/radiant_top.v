@@ -50,9 +50,13 @@ module radiant_top( input SYS_CLK_P,
 
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
-    parameter [3:0] VER_MINOR = 0;
-    parameter [7:0] VER_REV = 2;
+    parameter [3:0] VER_MINOR = 1;
+    parameter [7:0] VER_REV = 0;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
+    // gets pulled in by Tcl script.
+    // bits[4:0] = day
+    // bits[8:5] = month
+    // bits[15:9] = 2-digit year
     parameter [15:0] FIRMWARE_DATE = {16{1'b0}};
     localparam [31:0] DATEVERSION = { FIRMWARE_DATE, FIRMWARE_VERSION };
 
@@ -104,7 +108,8 @@ module radiant_top( input SYS_CLK_P,
     `WB_DEFINE( l4_ctrl, 32, 16, 4);
     `WB_DEFINE( l4_ram, 32, 16, 4);
     `WB_DEFINE( trig, 32, 16, 4);
-    `WB_DEFINE( scal, 32, 16, 4);
+    `WB_DEFINE( scal, 32, 18, 4);
+    `WB_DEFINE( calram, 32, 19, 4);
     
     `WBM_KILL( scal, 32);
     
@@ -119,14 +124,16 @@ module radiant_top( input SYS_CLK_P,
     assign bmc_cyc_o = bmc_stb_o;
     // it's always a 32-bit interface, the interface's low bits just generate the byte enables.
     assign bmc_adr_o[1:0] = 2'b00;
-    boardman_interface #(.CLOCK_RATE(50000000),.BAUD_RATE(115200)) u_bmif(.clk(CLK50),.rst(1'b0),.BM_RX(BM_RX),.BM_TX(BM_TX),
+    wire [1:0] burst_size;
+    boardman_interface #(.CLOCK_RATE(50000000),.BAUD_RATE(1000000)) u_bmif(.clk(CLK50),.rst(1'b0),.BM_RX(BM_RX),.BM_TX(BM_TX),
                                                                           .adr_o(bmc_adr_o[21:2]),
                                                                           .en_o(bmc_stb_o),
                                                                           .wr_o(bmc_we_o),
                                                                           .wstrb_o(bmc_sel_o),
                                                                           .dat_o(bmc_dat_o),
                                                                           .dat_i(bmc_dat_i),
-                                                                          .ack_i(bmc_ack_i || bmc_err_i || bmc_rty_i));
+                                                                          .ack_i(bmc_ack_i || bmc_err_i || bmc_rty_i),
+                                                                          .burst_size_i(burst_size));
     
     wbc_intercon u_intercon( .clk_i(CLK50),.rst_i(1'b0),
                             `WBS_CONNECT( bmc ,     bmc ),
@@ -161,6 +168,8 @@ module radiant_top( input SYS_CLK_P,
                      .ps_en_i(ps_en),
                      .ps_incdec_i(ps_incdec),
                      .ps_done_o(ps_done),
+                                       
+                     .burst_size_o(burst_size),
                                           
                      .internal_led_i(counter[23]),
                      .ss_incr_i(ss_incr),
@@ -249,6 +258,11 @@ module radiant_top( input SYS_CLK_P,
                                    .WCLK_N(WCLK_N),
                                    .SHOUT(shout),
                                    .WR(WR));
+
+    // sysclk domain
+    wire [24*12-1:0] lab_dat;
+    wire [11:0] lab_wr;                                   
+                                   
     par_lab4d_ram #(.NUM_SS_INCR(2),.NUM_SRCLK(2),.SRCLK_POLARITY(SRCLK_POLARITY),.NUM_LAB4(24),.DOE_POLARITY(DOE_POLARITY),.SRCLK_DIFFERENTIAL("FALSE"))
             u_l4ram(.clk_i(CLK50),
                     .rst_i(1'b0),
@@ -265,12 +279,24 @@ module radiant_top( input SYS_CLK_P,
                     .readout_fifo_empty_o(readout_fifo_empty),
                     .prescale_i(readout_prescale),
                     .complete_o(readout_complete),
+                    
+                    .lab_dat_o(lab_dat),
+                    .lab_wr_o(lab_wr),
+                    
                     .DOE_LVDS_P(DOE_P),
                     .DOE_LVDS_N(DOE_N),
                     .SS_INCR(ss_incr),
                     .SRCLK_P(SRCLK),
                     // not differential
                     .SRCLK_N());
+
+    // hook up the calram
+    wb_calram u_calram(.clk_i(CLK50),
+                       .rst_i(1'b0),
+                       `WBS_CONNECT(calram, wb),
+                       .sys_clk_i(sysclk),
+                       .lab_dat_i(lab_dat),
+                       .lab_wr_i(lab_wr));
                                                                                   
     radiant_trig_top #(.TRIG_POLARITY(TRIG_POLARITY)) u_trig(.clk_i(CLK50),.rst_i(1'b0),
                                                              `WBS_CONNECT(trig, wb),
