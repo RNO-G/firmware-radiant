@@ -5,6 +5,9 @@
 // We have 4MB of register space.
 // The full space of 24 LAB4Ds is 192 kB, or 48k qwords,
 // which fits in 64k of space, so we have buckets of space.
+
+// Calram is literally RAM: it's where we store the pedestals and the
+// zero-crossing data.
 module wbc_intercon(
 		input clk_i,
 		input rst_i,
@@ -17,22 +20,24 @@ module wbc_intercon(
 		`WBM_NAMED_PORT(l4_ctrl, 32, 16, 4),
 		`WBM_NAMED_PORT(l4_ram, 32, 16, 4),
 		`WBM_NAMED_PORT(trig, 32, 16, 4),
-		`WBM_NAMED_PORT(scal, 32, 16, 4)
+		`WBM_NAMED_PORT(scal, 32, 18, 4),
+		`WBM_NAMED_PORT(calram, 32, 19, 4)
     );
 
     parameter DEBUG = `WBC_INTERCON_DEBUG;
 
 	localparam [19:0] RAD_ID_CTRL_BASE     = 22'h000000;
-	localparam [19:0] RAD_ID_CTRL_MASK     = 22'h38FFFF;	// match xx x000: 0x00000-0x0FFFF, shadowed at 0x80000-0x8FFFF
+	localparam [19:0] RAD_ID_CTRL_MASK     = 22'h30FFFF;	// match xx 0000: 0x00000-0x0FFFF (16-bit)
 	localparam [19:0] L4_CTRL_BASE         = 22'h010000;
-	localparam [19:0] L4_CTRL_MASK	       = 22'h38FFFF;	// match xx x001: 0x10000-0x1FFFF, shadowed at 0x90000-0x9FFFF
+	localparam [19:0] L4_CTRL_MASK	       = 22'h30FFFF;	// match xx 0001: 0x10000-0x1FFFF (16-bit)
 	localparam [19:0] L4_RAM_BASE		   = 22'h020000;	
-	localparam [19:0] L4_RAM_MASK		   = 22'h38FFFF;	// match xx x010: 0x20000-0x2FFFF, shadowed at 0xA0000-0xAFFFF
+	localparam [19:0] L4_RAM_MASK		   = 22'h30FFFF;	// match xx 0010: 0x20000-0x2FFFF (16-bit)
 	localparam [19:0] TRIG_BASE			   = 22'h030000;
-	localparam [19:0] TRIG_MASK			   = 22'h38FFFF;	// match xx x011: 0x30000-0x3FFFF, shadowed at 0xB0000-0xBFFFF
+	localparam [19:0] TRIG_MASK			   = 22'h30FFFF;	// match xx 0011: 0x30000-0x3FFFF (16-bit)
 	localparam [19:0] SCAL_BASE			   = 22'h040000;
-	localparam [19:0] SCAL_MASK			   = 22'h3BFFFF;	// match xx x1xx: 0x40000-0x7FFFF, shadowed at 0xC0000-0xFFFFF
-
+	localparam [19:0] SCAL_MASK			   = 22'h33FFFF;	// match xx 01xx: 0x40000-0x7FFFF (18-bit)
+	localparam [19:0] CALRAM_BASE          = 22'h080000;     
+    localparam [19:0] CALRAM_MASK          = 22'h37FFFF;    // match xx 1xxx: 0x80000-0xFFFFF (19-bit)
 	wire bmc_gnt;
 	wire spic_gnt;
 	wire pciec_gnt;
@@ -43,7 +48,7 @@ module wbc_intercon(
 //							.req2(pciec_cyc_i),.gnt2(pciec_gnt),
 //							.req3(wbvio_cyc_i),.gnt3(wbvio_gnt));							
 	// Switch to expandable round-robin arbiter
-    localparam NUM_SLAVES = 5;
+    localparam NUM_SLAVES = 6;
 	localparam NUM_MASTERS = 3;
 	wire [NUM_MASTERS-1:0] requests;
 	wire [NUM_MASTERS-1:0] grants;
