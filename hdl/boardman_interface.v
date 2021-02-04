@@ -17,6 +17,12 @@ module boardman_interface(
         output [3:0]  wstrb_o,
         input         ack_i,
         
+        // 00: in burst mode, these are byte accesses
+        // 01: in burst mode, these are word accesses
+        // 10: in burst mode, these are qword accesses
+        // 11: reserved
+        input [1:0]   burst_size_i,
+        
         input BM_RX,
         output BM_TX        
     );
@@ -24,9 +30,7 @@ module boardman_interface(
             
     parameter CLOCK_RATE = 100000000;
     parameter BAUD_RATE = 1000000;    
-    
-    reg [23:0] address = {24{1'b0}};
-    reg [23:0] capture_address = {24{1'b0}};
+ 
     reg en = 0;
     reg wr = 0;
     reg [3:0] wstrb = {4{1'b0}};
@@ -35,6 +39,8 @@ module boardman_interface(
     // to be set in the board manager, because normally all addresses
     // with bit 22 are handled by the board manager.
     reg addr_increment = 0;
+ 
+ 
     
     reg [7:0] len = {8{1'b0}};
     reg write_last = 0;
@@ -76,6 +82,13 @@ module boardman_interface(
     wire cobs_tx_full;
     wire cobs_tx_tready = !cobs_tx_full;
     wire cobs_tx_tvalid;
+
+    reg [23:0] address = {24{1'b0}};
+    reg [23:0] capture_address = {24{1'b0}};
+    // On burst reads we auto-align addresses. 
+    wire [1:0] lowbit_mask = { !burst_size_i[1], !burst_size_i[1] && !burst_size_i[0] };
+    wire [7:0] lowbyte_mask = { 6'h3F, lowbit_mask };
+    wire [7:0] aligned_address = (capture_address[23] && capture_address[22]) ? axis_rx_tdata & lowbyte_mask : axis_rx_tdata;
         
     localparam FSM_BITS=5;
     localparam [FSM_BITS-1:0] IDLE=0;
@@ -122,11 +135,12 @@ module boardman_interface(
                 if (axis_rx_tlast || axis_rx_tuser) state <= IDLE;
                 else begin
                     if (capture_address[23]) begin
-                        // figure out where we start
-                        if (capture_address[1:0] == 2'b00) state <= WRITE0;
-                        else if (capture_address[1:0] == 2'b01) state <= WRITE1;
-                        else if (capture_address[1:0] == 2'b10) state <= WRITE2;
-                        else if (capture_address[1:0] == 2'b11) state <= WRITE3;
+                        // Figure out where we start.
+                        // Note that capture_address[1:0] isn't valid yet, grab it from the RX
+                        if (axis_rx_tdata[1:0] == 2'b00) state <= WRITE0;
+                        else if (axis_rx_tdata[1:0] == 2'b01) state <= WRITE1;
+                        else if (axis_rx_tdata[1:0] == 2'b10) state <= WRITE2;
+                        else if (axis_rx_tdata[1:0] == 2'b11) state <= WRITE3;
                     end else state <= READLEN;
                 end
             end
@@ -140,27 +154,36 @@ module boardman_interface(
             READADDR1: if (axis_tx_tready) state <= READADDR0;
             READADDR0: if (axis_tx_tready) state <= READCAPTURE;
             READCAPTURE: if (ack_i) begin
-                // figure out where the read starts
+                // Figure out where we start. Note that 'address' here is
+                // already burst-aligned, so if we're bursting, it'll only go to the appropriate
+                // address.
                 if (address[1:0] == 2'b00) state <= READDATA0;
                 else if (address[1:0] == 2'b01) state <= READDATA1;
                 else if (address[1:0] == 2'b10) state <= READDATA2;
                 else if (address[1:0] == 2'b11) state <= READDATA3;
             end
+            // If bursting in byte mode, jump to READCAPTURE to grab data again. Otherwise
+            // go to READDATA1.
             READDATA0: if (axis_tx_tready) begin
                 if (!len) state <= IDLE;
-                else if (addr_increment) state <= READDATA1;
+                else if (addr_increment || (burst_size_i != 2'b00)) state <= READDATA1;
                 else state <= READCAPTURE;
             end
+            // If bursting in byte mode OR in word mode (NOT in dword mode) jump to
+            // READCAPTURE to grab data again. Otherwise go to READDATA2.
             READDATA1: if (axis_tx_tready) begin
                 if (!len) state <= IDLE;
-                else if (addr_increment) state <= READDATA2;
+                else if (addr_increment || (burst_size_i == 2'b10)) state <= READDATA2;
                 else state <= READCAPTURE;
             end
+            // If bursting in byte mode, jump to READCAPTURE to grab data again. Otherwise
+            // go to READDATA3.
             READDATA2: if (axis_tx_tready) begin
                 if (!len) state <= IDLE;
-                else if (addr_increment) state <= READDATA3;
+                else if (addr_increment || (burst_size_i == 2'b00)) state <= READDATA3;
                 else state <= READCAPTURE;
             end
+            // No matter what, go to READCAPTURE to grab next data.
             READDATA3: if (axis_tx_tready) begin
                 if (!len) state <= IDLE;
                 else state <= READCAPTURE;
@@ -168,19 +191,27 @@ module boardman_interface(
             // soooo... this will do wackadoodle things if an
             // error comes in the middle. Maybe buffer the writes.
             // Check that later.
+            //
+            // The burst_size_i qualification makes it so we interpret these differently.
+            // If 00, we go WRITEx->WRITEEN->WRITEx->WRITEEN repeatedly.
+            // If 01, we go WRITE0/2->WRITE1/3->WRITEEN repeatedly.
+            // If 10, we go WRITE0->WRITE1->WRITE2->WRITE3->WRITEEN repeatedly.
+            // Note that if you screw up and do it unaligned, it'll go like
+            // WRITE3->WRITEEN->WRITE0->WRITE1->WRITE2->WRITE3->WRITEEN
+            // which, I guess could be useful
             WRITE0: if (axis_rx_tvalid) begin
                 if (axis_rx_tuser) state <= IDLE;
-                else if (axis_rx_tlast || !addr_increment) state <= WRITEEN;
+                else if (axis_rx_tlast || (!addr_increment && (burst_size_i == 2'b00) )) state <= WRITEEN;
                 else state <= WRITE1;
             end
             WRITE1: if (axis_rx_tvalid) begin
                 if (axis_rx_tuser) state <= IDLE;
-                else if (axis_rx_tlast || !addr_increment) state <= WRITEEN;
+                else if (axis_rx_tlast || (!addr_increment && (burst_size_i == 2'b01 || burst_size_i == 2'b00) )) state <= WRITEEN;
                 else state <= WRITE2;
             end
             WRITE2: if (axis_rx_tvalid) begin
                 if (axis_rx_tuser) state <= IDLE;
-                else if (axis_rx_tlast || !addr_increment) state <= WRITEEN;
+                else if (axis_rx_tlast || (!addr_increment && (burst_size_i == 2'b00) )) state <= WRITEEN;
                 else state <= WRITE3;
             end
             WRITE3: if (axis_rx_tvalid) begin
@@ -190,11 +221,16 @@ module boardman_interface(
             WRITEEN: if (ack_i) begin
                 if (write_last) state <= WRITEADDR2;
                 else if (!addr_increment) begin
-                    // figure out where we start
-                    if (capture_address[1:0] == 2'b00) state <= WRITE0;
-                    else if (capture_address[1:0] == 2'b01) state <= WRITE1;
-                    else if (capture_address[1:0] == 2'b10) state <= WRITE2;
-                    else if (capture_address[1:0] == 2'b11) state <= WRITE3;                
+                    if (burst_size_i == 2'b00) begin
+                        // figure out where we jump back to
+                        if (address[1:0] == 2'b00) state <= WRITE0;
+                        else if (address[1:0] == 2'b01) state <= WRITE1;
+                        else if (address[1:0] == 2'b10) state <= WRITE2;
+                        else if (address[1:0] == 2'b11) state <= WRITE3;                
+                    end else if (burst_size_i == 2'b01) begin
+                        if (address[1]) state <= WRITE2;
+                        else state <= WRITE3;
+                    end else state <= WRITE0;
                 end else state <= WRITE0;
             end
             WRITEADDR2: if (axis_tx_tready) state <= WRITEADDR1;
@@ -204,12 +240,12 @@ module boardman_interface(
             RESET0: state <= RESET1;
             RESET1: state <= IDLE;
         endcase
-        
+                
         // deal with the address increments
         if (((state == WRITEEN && ack_i) || (state == READDATA3 && axis_tx_tready)) && addr_increment)
             address <= { 2'b00, address[21:2], 2'b00 } + 4;
         else if (state == ADDR0)
-            address <= {capture_address[23:8],axis_rx_tdata};
+            address <= {capture_address[23:8],aligned_address};
         
         if (state == ADDR2) addr_increment <= !axis_rx_tdata[6];
         
