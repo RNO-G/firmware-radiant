@@ -13,6 +13,7 @@ module par_lab4d_ram #(
         parameter SRCLK_DIFFERENTIAL = "TRUE",
         parameter [NUM_SRCLK-1:0] SRCLK_POLARITY = {NUM_SRCLK{1'b0}},
         parameter NUM_LAB4 = 24,
+        parameter LAB4_BITS = 12,
         parameter [NUM_LAB4-1:0] DOE_POLARITY = {NUM_LAB4{1'b0}},
         parameter SURF5_COMPAT="FALSE"
 )(
@@ -35,6 +36,10 @@ module par_lab4d_ram #(
 		output [NUM_LAB4-1:0] readout_fifo_empty_o,
 		input [15:0] prescale_i,
 		
+		// Redirected readout data for CALRAM (or whatever...)
+		output [NUM_LAB4*LAB4_BITS-1:0] lab_dat_o,
+		output [NUM_LAB4-1:0] lab_wr_o,
+		
 		output complete_o,
 		output [31:0] readout_debug_o,
 		input [NUM_LAB4-1:0] DOE_LVDS_P,
@@ -46,7 +51,7 @@ module par_lab4d_ram #(
 		output [15:0] sample_debug
     );
     localparam L4W=$clog2(NUM_LAB4);
-    localparam L4_BITS = 12;
+    localparam L4_BITS = LAB4_BITS;
     
 	wire [NUM_SRCLK-1:0] SRCLK;
 	wire [NUM_LAB4-1:0] DOE;
@@ -192,8 +197,10 @@ module par_lab4d_ram #(
                 lab4d_fifo u_fifo(.wr_clk(sys_clk_i),.wr_en(data_wr_reg),.din(data_in_reg),
                                         .rst(readout_fifo_rst_i),.prog_empty(readout_fifo_empty_o[i]),
                                         .prog_empty_thresh(readout_empty_threshold),
-                                        .rd_clk(clk_i),.rd_en(lab_read[i]),.dout(data_output));
+                                        .rd_clk(clk_i),.rd_en(lab_read[i]),.dout(data_output));                                        
                 assign data_out[i] = {data_output[15:0],data_output[31:16]};
+                assign lab_dat_o[L4_BITS*i +: L4_BITS] = data_in_reg[0 +: L4_BITS];
+                assign lab_wr_o[i] = data_wr_reg;
             end else begin : SHAD
                 // We want to shadow things to keep the decode easy, so what we do is just shift
                 // DATA_OUT_SIZE down by 1 and use that as a modulo. We don't just do modulo NUM_LAB4,
