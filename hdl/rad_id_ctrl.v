@@ -22,7 +22,7 @@
 // 0x0008: CPLD control register.
 // 0x000C: unused
 // 0x0010: PPS selection register.
-// 0x0014: Reset register (global reset)
+// 0x0014: Reset/mode register
 // 0x0018: General control (pulser, LED, I guess)
 // 0x001C: JTAG core, left.
 // 0x0020: JTAG core, right.
@@ -66,7 +66,7 @@ module rad_id_ctrl(
         input ps_incdec_i,
         output ps_done_o,
         
-        // static WR value when in reset
+        // static WR value when in reset (not actually needed!)
         output [`LAB4_WR_WIDTH-1:0] reset_wr_o,
 		// indicates that we're selecting an inverted MONTIMING
 		output [1:0] invert_montiming_o,		
@@ -78,6 +78,9 @@ module rad_id_ctrl(
         input [1:0] ss_incr_i,
         input [1:0] sclk_i,
         output [1:0] shout_o,
+        
+        // Burst size register
+        output [1:0] burst_size_o,
         
         // JTAG enable
         output JTAGENB,
@@ -144,7 +147,14 @@ module rad_id_ctrl(
         assign invert_montiming_o[0] = (MONTIMING_POLARITY[ cpld_ctrl_reg[2:0] ]);
         assign invert_montiming_o[1] = (MONTIMING_POLARITY[ 12+cpld_ctrl_reg[CBIT_COUNT +: 3] ]);            
 
-		reg [31:0] reset_reg = {32{1'b0}};
+        // Reset/mode register
+        // bit [0]     = MMCM (all internal clock) reset
+        // bit [8:7]   = burst size
+        // bit [20:16] = RESETWR (static WR value when in reset)
+        // bit [30:29] = SST_SEL outputs
+        // bit [31]    = JTAG mode
+		reg [31:0] reset_reg = {32{1'b0}};        
+
 		reg [31:0] pps_sel_reg = {32{1'b0}};
 		reg [31:0] led_reg = {32{1'b0}};
 		wire [31:0] jtag_left_reg;
@@ -628,4 +638,6 @@ module rad_id_ctrl(
         assign shout_o = ssincr_tdo_reg;
         
         assign SST_SEL = ~reset_reg[30:29];
+
+        assign burst_size_o = reset_reg[8:7];
 endmodule
