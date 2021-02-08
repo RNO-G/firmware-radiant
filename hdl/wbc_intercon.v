@@ -122,6 +122,7 @@ module wbc_intercon(
 	`SLAVE_MAP( l4_ram,  L4_RAM_MASK, L4_RAM_BASE );
 	`SLAVE_MAP( trig, TRIG_MASK, TRIG_BASE );
 	`SLAVE_MAP( scal, SCAL_MASK, SCAL_BASE );
+	`SLAVE_MAP( calram, CALRAM_MASK, CALRAM_BASE );
 	
 	always @(*) begin
 		if (sel_l4_ram) begin
@@ -144,6 +145,11 @@ module wbc_intercon(
 			muxed_err <= scal_err_i;
 			muxed_rty <= scal_rty_i;
 			muxed_dat_i <= scal_dat_i;
+        end else if (sel_calram) begin
+            muxed_ack <= calram_ack_i;
+            muxed_err <= calram_err_i;
+            muxed_rty <= calram_rty_i;
+            muxed_dat_i <= calram_dat_i;
 		end else begin
 			muxed_ack <= rad_id_ctrl_ack_i;
 			muxed_err <= rad_id_ctrl_err_i;
