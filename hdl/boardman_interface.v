@@ -180,7 +180,7 @@ module boardman_interface(
             // go to READDATA3.
             READDATA2: if (axis_tx_tready) begin
                 if (!len) state <= IDLE;
-                else if (addr_increment || (burst_size_i == 2'b00)) state <= READDATA3;
+                else if (addr_increment || (burst_size_i != 2'b00)) state <= READDATA3;
                 else state <= READCAPTURE;
             end
             // No matter what, go to READCAPTURE to grab next data.
@@ -308,9 +308,14 @@ module boardman_interface(
 
         // tlast generation
         if (state == WRITEADDR0 && axis_tx_tready) axis_tx_tlast <= 1;
-        else if (((state == READCAPTURE && ack_i) || 
-                 ((state == READDATA0 || state == READDATA1 || state == READDATA2) && axis_tx_tready)) && 
-                 (len == 1)) axis_tx_tlast <= 1;
+        // TLAST goes when we're going to TRANSIT to 0 in the next guy.
+        // There's one special case we need to handle, which is in READCAPTURE if len is already 0.
+        // This happens if READDATA0 is going to be the final byte. Note that READDATA3 is excluded
+        // here because the next state after READDATA3 is always READCAPTURE, so the len = 0 catches
+        // that there.
+        else if ((state == READCAPTURE && ack_i && (len == 0)) || 
+                 (((state == READDATA0 || state == READDATA1 || state == READDATA2) && axis_tx_tready) && 
+                 (len == 1))) axis_tx_tlast <= 1;
         else axis_tx_tlast <= 0;
     end
 
@@ -364,7 +369,9 @@ module boardman_interface(
                                      .probe15(axis_tx_tlast),
                                      .probe16(cobs_tx_tdata),
                                      .probe17(cobs_tx_tready),
-                                     .probe18(cobs_tx_tvalid));
+                                     .probe18(cobs_tx_tvalid),
+                                     .probe19(burst_size_i),
+                                     .probe20(len));
          end
      endgenerate
     
