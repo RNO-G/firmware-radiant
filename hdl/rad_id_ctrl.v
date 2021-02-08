@@ -149,7 +149,7 @@ module rad_id_ctrl(
 
         // Reset/mode register
         // bit [0]     = MMCM (all internal clock) reset
-        // bit [8:7]   = burst size
+        // bit [9:8]   = burst size
         // bit [20:16] = RESETWR (static WR value when in reset)
         // bit [30:29] = SST_SEL outputs
         // bit [31]    = JTAG mode
@@ -438,7 +438,7 @@ module rad_id_ctrl(
                     // tdi/tms
                     // tdi has magic byte reversal powers, tms/tdo do not.
                     if (sel_jtag[s] && wb_we_i && wb_sel_i[0]) begin
-                        if ((wb_sel_i[3] && !wb_dat_i[29]) || (!wb_sel_i[3] && reverse_bitorder[s]))
+                        if ((wb_sel_i[3] && !wb_dat_i[29]) || (!wb_sel_i[3] && !reverse_bitorder[s]))
                             tdi[8*s +: 8] <= wb_dat_i[0 +: 8];
                         else begin
                             tdi[8*s + 0] <= wb_dat_i[7];
@@ -639,5 +639,5 @@ module rad_id_ctrl(
         
         assign SST_SEL = ~reset_reg[30:29];
 
-        assign burst_size_o = reset_reg[8:7];
+        assign burst_size_o = reset_reg[9:8];
 endmodule
