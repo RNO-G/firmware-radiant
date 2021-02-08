@@ -51,7 +51,7 @@ module radiant_top( input SYS_CLK_P,
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
     parameter [3:0] VER_MINOR = 1;
-    parameter [7:0] VER_REV = 0;
+    parameter [7:0] VER_REV = 1;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
@@ -143,6 +143,7 @@ module radiant_top( input SYS_CLK_P,
                             `WBM_CONNECT( l4_ctrl, l4_ctrl),
                             `WBM_CONNECT( l4_ram, l4_ram),
                             `WBM_CONNECT( trig , trig),
+                            `WBM_CONNECT( calram, calram),
                             `WBM_CONNECT( scal , scal));
 
     wire [1:0] ss_incr;
@@ -261,7 +262,7 @@ module radiant_top( input SYS_CLK_P,
 
     // sysclk domain
     wire [24*12-1:0] lab_dat;
-    wire [11:0] lab_wr;                                   
+    wire [23:0] lab_wr;                                   
                                    
     par_lab4d_ram #(.NUM_SS_INCR(2),.NUM_SRCLK(2),.SRCLK_POLARITY(SRCLK_POLARITY),.NUM_LAB4(24),.DOE_POLARITY(DOE_POLARITY),.SRCLK_DIFFERENTIAL("FALSE"))
             u_l4ram(.clk_i(CLK50),
