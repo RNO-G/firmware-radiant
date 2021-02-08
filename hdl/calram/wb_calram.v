@@ -42,8 +42,11 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
     wire [NUM_LABS-1:0] calram_rollover;
     
     wire [31:0] calram_ack;
-    wire [31:0] calram_dout[NUM_LABS-1:0];
     wire [31:0] calram_mux_out[31:0];
+
+    wire [4:0] chunk_addr = wb_adr_i[14 +: 5];
+    wire [11:0] wb_ram_addr = wb_adr_i[2 +: 12];
+    wire [1:0] local_addr = wb_adr_i[2 +: 2];
     
     reg en_clk = 0;
     reg wr_reg = 0;
@@ -67,11 +70,7 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
     reg zc_full_reg = 0;
     (* ASYNC_REG = "TRUE" *)
     reg [1:0] zc_full_clk = {2{1'b0}};
-    
-    wire [4:0] chunk_addr = wb_adr_i[14 +: 5];
-    wire [11:0] wb_ram_addr = wb_adr_i[2 +: 12];
-    wire [1:0] local_addr = wb_adr_i[2 +: 2];
-    
+        
     wire rollover_sysclk = calram_rollover[0];
     wire rollover_clk;
     flag_sync u_rollsync(.in_clkA(rollover_sysclk),.clkA(sys_clk_i),.out_clkB(rollover_clk),.clkB(clk_i));
@@ -174,7 +173,7 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
                                   .ack_o(calram_ack[i]),
                                   .adr_i(wb_ram_addr),
                                   .dat_i(wb_dat_i[26:0]),
-                                  .dat_o(calram_dout[i]));                                  
+                                  .dat_o(calram_mux_out[i]));                                  
         end
     endgenerate
     
