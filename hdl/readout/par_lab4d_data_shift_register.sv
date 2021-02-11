@@ -1,4 +1,5 @@
 `timescale 1ns / 1ps
+`include "radiant_debug.vh"
 ////////////////////////////////////////////////////////////////////////////////
 // This file is a part of the Antarctic Impulsive Transient Antenna (ANITA)
 // project, a collaborative scientific effort between multiple institutions. For
@@ -192,6 +193,12 @@ module par_lab4d_data_shift_register #( parameter NUM_LAB4 = 12,
 			end	   
 		end
 	endgenerate
+	
+	// debuggy-buggy parts
+	// we set the VIO output to 8 bits, *just cuz*.
+	wire [7:0] lab_select;
+	
+	
 	assign sample_counter_o = sample_counter;
 	assign bit_counter_o = bit_counter;
 	assign srclk_o = dbg_srclk;
