@@ -14,7 +14,7 @@ module lab4d_wilkinson_ramp_v2 #(
     parameter NUM_LABS=24, 
     parameter NUM_RAMP=2,
 	parameter [15:0] RAMP_TO_WCLK_DEFAULT = {16{1'b0}},
-	parameter [15:0] WCLK_STOP_COUNT_DEFAULT = 16'd1024,
+	parameter [15:0] WCLK_STOP_COUNT_DEFAULT = 16'd2048,
 	parameter [NUM_LABS-1:0] WCLK_POLARITY = {24{1'b0}},
 	parameter TRISTATE_WCLK = "FALSE",
 	parameter [NUM_RAMP-1:0] RAMP_POLARITY = 2'b00,
@@ -28,6 +28,7 @@ module lab4d_wilkinson_ramp_v2 #(
 		input [15:0] ramp_to_wclk_i,
 		input [15:0] wclk_stop_count_i,
 		input do_ramp_i,
+        output [NUM_RAMP-1:0] ramp_in_o,
 		output ramp_done_o,
 		output [NUM_RAMP-1:0] RAMP,
 		output [NUM_LABS-1:0] WCLK_P,
@@ -95,7 +96,8 @@ module lab4d_wilkinson_ramp_v2 #(
 	generate
 		genvar i,j;
 		for (i=0;i<NUM_LABS;i=i+1) begin : LOOP
-			reg [7:0] reset_delay = {8{1'b0}};
+		    // Auto-reset at initialization (otherwise you actually *have* to forcibly reset it).
+			reg [7:0] reset_delay = 8'h1;
 			reg oserdes_reset = 1;
 			(* EQUIVALENT_REGISTER_REMOVAL = "FALSE" *)
 			(* KEEP = "TRUE" *)
@@ -179,14 +181,25 @@ module lab4d_wilkinson_ramp_v2 #(
         for (j=0;j<NUM_RAMP;j=j+1) begin : RAMPS
             wire ramp_to_obuf;
             wire ramp_t = (TRISTATE_RAMP == "FALSE") ? 1'b0 : ramp_idle;
-            if (RAMP_POLARITY[j] == 1) begin : POS
+            // Because RAMP only has one important edge, we can abuse it occasionally
+            // and drive it open-drain and let it be used as a secondary status input in some cases.
+            // For the RADIANT, for instance, it's used as the CPLD DONE signal.
+            if (TRISTATE_RAMP == "TRUE") begin : TRIS
+                wire ramp_in;
+                (* IOB = "TRUE" *)
+                FDSE u_rampin_reg(.D(ramp_in),.S(!ramp_idle),.CE(sys_clk_i),.Q(ramp_in_o[j]));
+                IOBUF u_rampobuf(.I(ramp_to_obuf),.O(ramp_in),.T(ramp_t),.IO(RAMP[j]));
+            end else begin
+                assign ramp_in_o = {NUM_RAMP{1'b0}};
+                OBUFT u_rampobuf(.I(ramp_to_obuf),.T(ramp_t),.O(RAMP[j]));
+            end
+            if (RAMP_POLARITY[j] == 0) begin : POS
                 (* IOB = "TRUE" *)
                 FDRE u_rampfd(.D(ramp_out_sysclk),.CE(1'b1),.C(sys_clk_i),.R(1'b0),.Q(ramp_to_obuf));
             end else begin : NEG
                 (* IOB = "TRUE" *)
                 FDRE u_rampfd(.D(~ramp_out_sysclk),.CE(1'b1),.C(sys_clk_i),.R(1'b0),.Q(ramp_to_obuf));
             end
-            OBUFT u_rampobuf(.I(ramp_to_obuf),.T(ramp_t),.O(RAMP[j]));
         end
 	endgenerate
 	
