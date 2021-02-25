@@ -16,7 +16,7 @@
 // *) SPI flash WISHBONE module.
 //
 // Module memory map:
-// Internal address range is 0x0000-0xFFFF.
+// Internal address range is 0x0000-0x7FFF.
 // 0x0000: Device ID   ('RDNT')
 // 0x0004: Firmware ID (standard day/month/major/minor/revision packing)
 // 0x0008: CPLD control register.
@@ -58,6 +58,8 @@ module rad_id_ctrl(
         input sync_reset_i,
         // 200 MHz clock
         output wclk_o,
+        // 333 MHz clock
+        output spiclk_o,
         
         // phase shifter 12.5 MHz clock
         output sys_clk_div8_ps_o,
@@ -81,6 +83,9 @@ module rad_id_ctrl(
         
         // Burst size register
         output [1:0] burst_size_o,
+        
+        // Ramp/DONE input (when we're not driving it)
+        input [1:0] rampdone_i,
         
         // JTAG enable
         output JTAGENB,
@@ -126,6 +131,12 @@ module rad_id_ctrl(
         parameter CBIT_COUNT = 8;
         parameter LOG2_CBIT_COUNT = 3;
         parameter BIST_BIT = 7;
+        (* ASYNC_REG = "TRUE" *)
+        reg [1:0] rampdone0_reg = {2{1'b0}};
+        (* ASYNC_REG = "TRUE" *)
+        reg [1:0] rampdone1_reg = {2{1'b0}};
+        always @(posedge clk_i) rampdone0_reg <= {rampdone0_reg[0], rampdone_i[0]};
+        always @(posedge clk_i) rampdone1_reg <= {rampdone1_reg[0], rampdone_i[0]};
         
         reg [2*CBIT_COUNT-1:0] cpld_ctrl = {2*CBIT_COUNT{1'b0}};
         reg [1:0] cpld_ctrl_update = {2{1'b0}};
@@ -137,9 +148,10 @@ module rad_id_ctrl(
         // wonky things when we switch.
         // So cpld_bist ALWAYS gets set whenever we're running. 
         wire [1:0] cpld_bist = { cpld_ctrl[CBIT_COUNT+BIST_BIT] || cpld_ctrl_busy[1], cpld_ctrl[BIST_BIT] || cpld_ctrl_busy[0] };
-        wire [31:0] cpld_ctrl_reg = { {7{1'b0}}, cpld_ctrl_busy[1],
+        // Bit 31 and bit 16 indicate whether or not the CPLD's actually programmed already.
+        wire [31:0] cpld_ctrl_reg = { rampdone1_reg[1], {6{1'b0}}, cpld_ctrl_busy[1],
                                       {(8-CBIT_COUNT){1'b0}}, cpld_ctrl[CBIT_COUNT +: CBIT_COUNT],
-                                      {7{1'b0}}, cpld_ctrl_busy[0],
+                                      rampdone0_reg[1], {6{1'b0}}, cpld_ctrl_busy[0],
                                       {(8-CBIT_COUNT){1'b0}}, cpld_ctrl[0 +: CBIT_COUNT]};
         reg [5:0] cclk_count = {6{1'b0}};
         reg [2*LOG2_CBIT_COUNT-1:0] cbit_count = {2*LOG2_CBIT_COUNT{1'b0}};
@@ -472,7 +484,8 @@ module rad_id_ctrl(
 
         // SYS CLK WIZARDRY		
 		// We just want a multiply by 4, so we'll boost the VCO to 1 GHz and divide by 10.
-		// 
+		// We're JAMMING THE CRAP out of the SPI output. Let's see if we can run it at 333 MHz.
+		// Almost certainly not!
 		wire SST_FB;
 		wire sys_clk_mmcm;
 		wire sys_clk_div4_mmcm;
@@ -490,6 +503,7 @@ module rad_id_ctrl(
 		.CLKOUT1_DIVIDE(10.0),	 // SYSCLK (100 MHz)
 		.CLKOUT2_DIVIDE(40.0),	 // SYSCLK_DIV4 (25 MHz)
 		.CLKOUT3_DIVIDE(80.0),	 // SYSCLK_DIV8_PS (12.5 MHz)
+		.CLKOUT4_DIVIDE(3.0),
 		.CLKOUT3_USE_FINE_PS("TRUE"),
 		// CLKOUT0_DUTY_CYCLE - CLKOUT6_DUTY_CYCLE: Duty cycle for CLKOUT outputs (0.01-0.99).
 		.CLKOUT0_DUTY_CYCLE(0.5),
@@ -504,6 +518,7 @@ module rad_id_ctrl(
 													.CLKOUT1(sys_clk_mmcm),
 													.CLKOUT2(sys_clk_div4_mmcm),
 													.CLKOUT3(sys_clk_div8_ps_mmcm),
+													.CLKOUT4(spiclk_o),
 													.PSCLK(ps_clk_i),
 													.PSEN(ps_en_i),
 													.PSINCDEC(ps_incdec_i),
