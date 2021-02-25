@@ -124,8 +124,10 @@ module lab4d_shift_register (
 		    (* IOB = "TRUE" *)
 			FDRE u_sclk(.D(sclk_reg),.C(clk_i),.R((state==IDLE)),.CE(1'b1),.Q(SCLK[j]));
         end
+        if (DEBUG == "TRUE") begin : ILA
+            lab4d_shift_register_ila u_ila(.clk(clk_i),.probe0(sin_copy),.probe1(pclk_copy),.probe2(sclk_copy),.probe3(go_i));
+        end
 	endgenerate
-    lab4d_shift_register_ila u_ila(.clk(clk_i),.probe0(sin_copy),.probe1(pclk_copy),.probe2(sclk_copy),.probe3(go_i));
 
 
 	assign busy_o = (state != IDLE);
