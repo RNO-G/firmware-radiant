@@ -1,4 +1,5 @@
 `include "wishbone.vh"
+`include "radiant_debug.vh"
 `timescale 1ns / 1ps
 // This stores all the data from a LAB4 into a FIFO.
 // The address space is 16 bits, and so the LAB4 selection
@@ -39,6 +40,7 @@ module par_lab4d_ram #(
 		// Redirected readout data for CALRAM (or whatever...)
 		output [NUM_LAB4*LAB4_BITS-1:0] lab_dat_o,
 		output [NUM_LAB4-1:0] lab_wr_o,
+		output [6:0] lab_sample_o,
 		
 		output complete_o,
 		output [31:0] readout_debug_o,
@@ -52,6 +54,7 @@ module par_lab4d_ram #(
     );
     localparam L4W=$clog2(NUM_LAB4);
     localparam L4_BITS = LAB4_BITS;
+    localparam DEBUG = `LAB4D_RAM_DEBUG;
     
 	wire [NUM_SRCLK-1:0] SRCLK;
 	wire [NUM_LAB4-1:0] DOE;
@@ -228,6 +231,51 @@ module par_lab4d_ram #(
 													  .bit_counter_o(bit_counter),
 													  .sample_counter_o(sample_counter),.DOE(DOE),.SS_INCR(SS_INCR),.SRCLK(SRCLK),
 													  .sample_debug(sample_debug));
+    // Note that this is missing 2 bits													  													  
+    assign lab_sample_o = sample_counter;													  
+
+    
+    generate
+        genvar d;
+        if (DEBUG == "TRUE") begin : DBG
+            reg [11:0] debug_data = {12{1'b0}};
+            reg        debug_wr = 0;
+            reg [6:0]  debug_sample = {7{1'b0}};
+            reg [1:0]  debug_buffer = {2{1'b0}};
+            wire [7:0] vio_sel;            
+
+            localparam L4NB = $clog2(NUM_LAB4);
+            // now find the max this can represent
+            localparam L4NBMAX = (1<<L4NB);
+            // now create an array that big
+            wire [LAB4_BITS-1:0] debug_lab_arr[L4NBMAX-1:0];  
+            wire [L4NB-1:0] sel_dbg = vio_sel[0 +: L4NB];                        
+            for (d=0;d<L4NBMAX;d=d+1) begin : DBGARR
+                if (d < NUM_LAB4) begin : REAL
+                    assign debug_lab_arr[d] = data[12*d +: 12];
+                end else begin : DUM
+                    // simplify the decode: if L4NB = 4 (so L4NBMAX = 16),
+                    // then this is j-8. So if we only have 12,
+                    // 13 would map to 5, 14 would map to 6, 15 to 7.
+                    assign debug_lab_arr[d] = debug_lab_arr[d - (1<<(L4NB-1))];
+                end
+            end
+            always @(posedge sys_clk_i) begin : REGS
+                debug_data <= debug_lab_arr[sel_dbg];
+                debug_wr <= data_wr;
+                debug_sample <= sample_counter;
+                debug_buffer <= readout_header_i[3:2];
+            end
+                
+            lab4_data_debug_vio u_dbg_vio(.clk(sys_clk_i),.probe_out0(vio_sel));
+            lab4_ram_debug u_dbg_ila(.clk(sys_clk_i),
+                                     .probe0(debug_data),
+                                     .probe1(debug_wr),
+                                     .probe2(debug_sample),
+                                     .probe3(debug_buffer));
+        end
+    endgenerate        
+
     // this is stupid fix this for Vivado
 	assign readout_debug_o[0 +: L4_BITS] = data[0 +: L4_BITS];
 	assign readout_debug_o[12] = DOE[0];
