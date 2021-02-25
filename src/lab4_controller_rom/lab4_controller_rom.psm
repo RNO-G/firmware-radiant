@@ -27,7 +27,11 @@ CONSTANT	user_serial_select_mask,	3F
 CONSTANT	do_ramp,			40
 CONSTANT	ramp_busy_bit,			80
 
-CONSTANT	do_readout,			40
+; We start off by just setting in_readout, and
+; then each time we do_readout we keep it set.
+; Then at the end we clear in_readout.
+CONSTANT    in_readout,         01
+CONSTANT	do_readout,			41
 CONSTANT	readout_busy_bit,		80
 
 CONSTANT	readout_GCC_reset_0,		00
@@ -68,6 +72,8 @@ main:
 
 ; OK, so the FIFO is not empty. Read it out.
 readout:
+    load    s0, in_readout
+    output  s0, readout_0
 	load	s0,	trigger_read_bit
 	output	s0,	trigger_0
 	; Now fetch the data.
@@ -204,6 +210,9 @@ readout_lp6:
 	; And begin readout again.
 	jump	readout_begin
 readout_complete:
+    ; clear the in_readout bit
+    load    s0, 00
+    output  s0, readout_0
 	return
 
 reset_request:
