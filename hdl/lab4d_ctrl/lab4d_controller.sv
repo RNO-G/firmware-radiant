@@ -19,6 +19,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
                           parameter NUM_RAMP=2,                          
                           parameter NUM_SHOUT=2,
                           parameter NUM_WR=4,
+                          parameter WR_DELAY=2,
                           parameter [NUM_LABS-1:0] WCLK_POLARITY={NUM_LABS{1'b0}})(
 		input clk_i,
 		input rst_i,
@@ -54,6 +55,8 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		
 		input [NUM_MONTIMING-1:0] montiming_i,
 		
+		output [NUM_RAMP-1:0] ramp_in_o,
+		
 		output [NUM_LABS-1:0] SIN,
 		output [NUM_SCLK-1:0] SCLK,
 		output [NUM_LABS-1:0] PCLK,
@@ -69,8 +72,8 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		output [15:0] trigger_debug_o,
 		output [14:0] phase_scanner_debug_o
     );
-	localparam [3:0] READOUT_PRESCALE_DEFAULT = 4'h0;
-	localparam [7:0] SHIFT_PRESCALE_DEFAULT = 8'h00;
+	localparam [3:0] READOUT_PRESCALE_DEFAULT = 4'h1;
+	localparam [7:0] SHIFT_PRESCALE_DEFAULT = 8'h01;
 	localparam [15:0] RAMP_TO_WILKINSON_DEFAULT = 16'h0000;
 	localparam [15:0] WCLK_STOP_COUNT_DEFAULT = 16'd1024;
 	// promote this to a parameter so it's visible
@@ -169,13 +172,13 @@ module lab4d_controller #(parameter NUM_LABS=24,
    reg ack = 0;
 
 	// lab4 register:
-	// bit 0 : reset request
-	// bit 1: runmode request
-	// bit 2: runmode
-	// bit 3: running
-	// bit 5-4: unused
-	// bit 7-6: current bank 
-	// bit 8: wilk reset
+	// bit 0 : reset request       (0x1)
+	// bit 1: runmode request      (0x2)
+	// bit 2: runmode              (0x4)
+	// bit 3: running              (0x8)
+	// bit 5-4: unused             (0x10)
+	// bit 7-6: current bank       (0x60)
+	// bit 8: wilk reset           (0x80)
 	// bit 14:9 unused
 	// bit 15: *readout* test pattern enable (not LAB4 test pattern enable! reads a counter into RAM. to test DMA)
 	// bit 27:16: regclear
@@ -253,7 +256,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 
 
 	// Readout Register:
-	// bit 0: readout complete
+	// bit 0: readout not complete (or - in a readout - set for ENTIRE buffer readout sequence). Helpful for rate-limiting soft triggers.
 	// bit 1: readout fifo reset
 	// bit 2: readout reset
 	// bit 3: data available (any readout fifo is not empty)
@@ -266,12 +269,13 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	// this... immediately finding out which FIFO has data isn't THAT important.
 	// bits 8+: readout fifo empty
 	reg readout_pending = 0;	
-	reg readout_done = 0;
+	reg readout_not_done = 0;
 	reg readout_data_not_test_pattern = 0;
 	reg readout_fifo_reset = 0;
 	reg readout_reset = 0;
+	reg in_a_readout = 0;
 	wire data_available = !(&readout_fifo_empty_i);
-	assign readout_register = {readout_fifo_empty_i,readout_pending,{2{1'b0}},readout_data_not_test_pattern,data_available,2'b00,readout_done};
+	assign readout_register = {readout_fifo_empty_i,readout_pending,2'b00,readout_data_not_test_pattern,data_available,2'b00,readout_not_done};
 	
 	reg [3:0] readout_header_clk = {4{1'b0}};
 	reg [3:0] readout_header_sysclk = {4{1'b0}};
@@ -381,7 +385,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		if (readout_complete) readout_pending <= 0;
 		else if (do_readout) readout_pending <= 1;
 
-		if (pb_port[4:0] == 22 && pb_write) readout_done <= pb_outport[0];
+		if (pb_port[4:0] == 22 && pb_write) readout_not_done <= pb_outport[0];
 		
 		if (wb_cyc_i && wb_stb_i && wb_we_i && wb_adr_i[6:0] == 7'h58) begin
 			readout_data_not_test_pattern <= wb_dat_i[4];
@@ -505,7 +509,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 												.SIN(SIN),
 												.SCLK(SCLK),
 												.PCLK(PCLK));
-	lab4d_trigger_control u_trigger(.clk_i(clk_i),
+	lab4d_trigger_control #(.NUM_WR(NUM_WR),.WR_DELAY(WR_DELAY)) u_trigger(.clk_i(clk_i),
 											  .sys_clk_i(sys_clk_i),
 											  .sys_clk_div4_flag_i(sys_clk_div4_flag_i),
 											  .sync_i(sync_i),
@@ -546,6 +550,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 										 .do_ramp_i(do_ramp),
 										 .ramp_done_o(ramp_done),
 										 .dbg_ramp_o(dbg_ramp),
+										 .ramp_in_o(ramp_in_o),
 										 .RAMP(RAMP),
 										 .WCLK_P(WCLK_P),
 										 .WCLK_N(WCLK_N));
@@ -613,6 +618,8 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	assign readout_empty_size_o = readout_empty_threshold;
 	
 	flag_sync u_readout_rst(.in_clkA(readout_reset),.clkA(clk_i),.out_clkB(readout_rst_o),.clkB(sys_clk_i));
+
+    assign prescale_o = readout_prescale;
 	
     assign wb_ack_o = ack;
     assign wb_err_o = 1'b0;
