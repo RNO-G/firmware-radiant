@@ -1,4 +1,5 @@
 `timescale 1ns / 1ps
+`include "radiant_debug.vh"
 // Fast SPI FIFO. This works as a pure data output FIFO, and can operate at ~200 MHz,
 // responding to SPI speeds up to 50 MHz without actually using the SPI to clock
 // data. Not super-positive about the reliability of doing it this way.
@@ -27,11 +28,25 @@ module fast_spi_fifo(
         // 256 bytes can be freely read by SPI.
         output      s_axis_tready,        
         
+        // RX path. No tready.
+        input        enable_rx,
+        output [7:0] m_axis_tdata,
+        output       m_axis_tvalid,
+        
         input CS_B,
         input SCLK,
         input MOSI,
         output MISO
     );
+    
+    localparam DEBUG = `FAST_SPI_FIFO_DEBUG;
+    
+    // These just use the same sequencing the tx path uses.
+    // when load_sequence[7] falls, we transfer over the shift reg.
+    reg [7:0] rx_shift_reg = {8{1'b0}};
+    reg [7:0] rx_capture_reg = {8{1'b0}};
+    reg       rx_load = 0;
+    reg       rx_valid = 0;
     
     reg [7:0] data_in = {8{1'b0}};
     reg       di_full = 0;
@@ -43,54 +58,74 @@ module fast_spi_fifo(
     
     reg [6:0] shift_reg = {7{1'b0}};
     
-    (* IOBUF = "TRUE" *)
+    (* IOB = "TRUE" *)
     reg       sclk_iob = 0;
     reg       sclk_reg = 0;
     
-    (* IOBUF = "TRUE" *)
+    reg       sclk_rise = 0;
+    
+    (* IOB = "TRUE" *)
     reg       cs_iob = 0;
     reg       cs_reg = 0;
     
     reg       cs_fall = 0;
     reg       miso_load = 0;
     
-    (* IOBUF = "TRUE" *)
+    (* IOB = "TRUE" *)
     reg       mosi_iob = 0;
     
-    (* IOBUF = "TRUE" *)
+    (* IOB = "TRUE" *)
     reg       miso_iob = 0;
     
     reg [7:0] load_sequence = 8'h1;
     reg [7:0] load_sequence_reg = 8'h1;
+    reg       last_load_sequence = 0;
 
-    // ILAs are tough here, we don't want to overload stuff.
-    // So we reregister everything
-    reg sclk_dbg = 0;
-    reg cs_dbg = 0;
-    reg [7:0] load_sequence_dbg = {8{1'b0}};
-    reg di_full_dbg = 0;
-    reg dn_full_dbg = 0;
-    reg [6:0] shift_reg_dbg = {7{1'b0}};    
-    reg [7:0] data_in_dbg = {8{1'b0}};
-    reg [7:0] data_next_dbg = {8{1'b0}};
-    fast_spi_ila_debug u_ila(.clk(aclk),
-                            .probe0(sclk_dbg),
-                            .probe1(cs_dbg),
-                            .probe2(load_sequence_dbg),
-                            .probe3(di_full_dbg),
-                            .probe4(dn_full_dbg),
-                            .probe5(shift_reg_dbg),
-                            .probe6(data_in_dbg),
-                            .probe7(data_next_dbg));
+    generate
+        if (DEBUG == "TRUE") begin : DBG
+            // ILAs are tough here, we don't want to overload stuff.
+            // So we reregister everything
+            reg sclk_dbg = 0;
+            reg cs_dbg = 0;
+            reg [7:0] load_sequence_dbg = {8{1'b0}};
+            reg di_full_dbg = 0;
+            reg dn_full_dbg = 0;
+            reg [6:0] shift_reg_dbg = {7{1'b0}};    
+            reg [7:0] data_in_dbg = {8{1'b0}};
+            reg [7:0] data_next_dbg = {8{1'b0}};
+            reg miso_iob_copy = 0;
+            reg miso_iob_debug = 0;
+            always @(posedge aclk) begin : DBGREG
+                sclk_dbg <= sclk_iob;
+                cs_dbg <= cs_iob;
+                load_sequence_dbg <= load_sequence;
+                di_full_dbg <= di_full;
+                dn_full_dbg <= dn_full;
+                shift_reg_dbg <= shift_reg;
+                data_in_dbg <= data_in;
+                data_next_dbg <= data_next;
+                if ((sclk_iob && !sclk_reg) || miso_load)
+                    miso_iob_copy <= shift_reg[6];
+                miso_iob_debug <= miso_iob_copy;
+            end
+            
+            fast_spi_ila_debug u_ila(.clk(aclk),
+                                    .probe0(sclk_dbg),
+                                    .probe1(cs_dbg),
+                                    .probe2(load_sequence_dbg),
+                                    .probe3(di_full_dbg),
+                                    .probe4(dn_full_dbg),
+                                    .probe5(shift_reg_dbg),
+                                    .probe6(data_in_dbg),
+                                    .probe7(data_next_dbg),
+                                    .probe8(mosi_iob),
+                                    .probe9(rx_capture_reg),
+                                    .probe10(rx_valid),
+                                    .probe11(miso_iob_copy));
+        end
+    endgenerate
+    
     always @(posedge aclk) begin
-        sclk_dbg <= sclk_iob;
-        cs_dbg <= cs_iob;
-        load_sequence_dbg <= load_sequence;
-        di_full_dbg <= di_full;
-        dn_full_dbg <= dn_full;
-        shift_reg_dbg <= shift_reg;
-        data_in_dbg <= data_in;
-        data_next_dbg <= data_next;
 
         // these always operate
         sclk_iob <= SCLK;
@@ -101,6 +136,9 @@ module fast_spi_fifo(
         cs_reg <= cs_iob;
         cs_fall <= !cs_iob && cs_reg;
         miso_load <= cs_fall;
+        
+        // this is *only* used for RX path, which is non-critical
+        sclk_rise <= (sclk_iob && !sclk_reg);
         
         if ((sclk_iob && !sclk_reg) || miso_load)
             miso_iob <= shift_reg[6];
@@ -119,6 +157,14 @@ module fast_spi_fifo(
         if (cs_iob) load_sequence_reg <= 8'h1;
         else load_sequence_reg <= load_sequence;
         
+        last_load_sequence <= load_sequence_reg[7];
+        
+        rx_load <= (!load_sequence_reg[7] && last_load_sequence && enable_rx);
+        rx_valid <= rx_load;
+        
+        if (rx_load) rx_capture_reg <= rx_shift_reg;
+        if (sclk_rise) rx_shift_reg <= {rx_shift_reg[6:0],mosi_iob};                
+        
         clear_data <= (load_sequence[1] && !load_sequence_reg[1]);
         
         if (!aresetn || clear_data) di_full <= 0;
@@ -134,6 +180,8 @@ module fast_spi_fifo(
         if (s_axis_tvalid && s_axis_tready) data_next <= s_axis_tdata;
     end
     
+    assign m_axis_tdata = rx_capture_reg;
+    assign m_axis_tvalid = rx_valid;
     
     assign MISO = miso_iob;
     assign s_axis_tready = !dn_full;
