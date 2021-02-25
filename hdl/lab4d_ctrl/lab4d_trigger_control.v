@@ -21,7 +21,15 @@
 // to totally change if you change it.
 // NUM_WR specifies the number of LAB4 address ports to generate
 // (doesn't have to match the number of LAB4s).
-module lab4d_trigger_control #(parameter NUM_WR=4)(
+//
+// WR_DELAY adds clock cycles to the WR *output* (period, no matter what - they're
+// just free-running shift registers). This can be done to delay WR to compensate for
+// an external WR delay, for instance.
+//
+// (note that this only one way to deal with it: you could also just adjust the sys_clk_div4_flag_i
+//  back an equivalent amount to compensate for it, adding yet more offset to the syncOffset field
+//  in the PHAB automatch. Either or. I'm doing it this way for now)
+module lab4d_trigger_control #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 		input clk_i,
 		input sys_clk_i,
 		input sys_clk_div4_flag_i,
@@ -223,34 +231,74 @@ module lab4d_trigger_control #(parameter NUM_WR=4)(
 	// convert address+2 | 0x10
 	// convert address+3
 	// convert address+3 | 0x10
+	//
+	// WR_DELAY allows for forward-delaying WR to compensate for an external WR delay.
+	// This is an utter garbage way to do this, mind you, I should rethink this whole thing:
+	// but realistically the window's wide enough that we can adjust the post trigger counter for proper
+	// capture pretty easily.
+	wire [WR_DELAY:0] enable_next_window_delay;
+	wire [WR_DELAY:0] enable_next_bank_delay;
+	wire [WR_DELAY:0] enabled_sysclk_delay;
+	wire [NUM_WINDOW_BITS:0] window_plus_one_delay[WR_DELAY:0];
+	wire [NUM_BANK_BITS:0] bank_plus_one_delay[WR_DELAY:0];
+	// connect the tails
+	assign enable_next_window_delay[0] = enable_next_window;
+	assign enable_next_bank_delay[0] = enable_next_bank;
+	assign enabled_sysclk_delay[0] = enabled_sysclk;
+	assign window_plus_one_delay[0] = window_plus_one;
+	assign bank_plus_one_delay[0] = bank_plus_one;
 	generate
 		genvar i,j;
+        // world's goofiest defined shift register
+        for (j=0;j<WR_DELAY;j=j+1) begin : DL
+            reg enable_next_window_reg = 0;
+            assign enable_next_window_delay[j+1] = enable_next_window_reg;
+            reg enable_next_bank_reg = 0;
+            assign enable_next_bank_delay[j+1] = enable_next_bank_reg;
+            reg enabled_sysclk_reg = 0;
+            assign enabled_sysclk_delay[j+1] = enabled_sysclk_reg;
+            
+            reg [NUM_WINDOW_BITS:0] window_plus_one_reg = {NUM_WINDOW_BITS+1{1'b0}};
+            assign window_plus_one_delay[j+1] = window_plus_one_reg;
+            reg [NUM_BANK_BITS:0] bank_plus_one_reg = {NUM_BANK_BITS+1{1'b0}};
+            assign bank_plus_one_delay[j+1] = bank_plus_one_reg;
+
+            always @(posedge sys_clk_i) begin : LOGIC
+                enable_next_window_reg <= enable_next_window_delay[j];
+                enable_next_bank_reg <= enable_next_bank_delay[j];
+                enabled_sysclk_reg <= enabled_sysclk_delay[j];
+                
+                window_plus_one_reg <= window_plus_one_delay[j];
+                bank_plus_one_reg <= bank_plus_one_delay[j];
+            end
+        end
+                
 		for (i=0;i<NUM_WR;i=i+1) begin : LAB
 			(* IOB = "TRUE" *)
-			FDRE u_wr4(.D(window_plus_one[0]),
-						  .CE(enable_next_window),
+			FDRE u_wr4(.D(window_plus_one_delay[WR_DELAY][0]),
+						  .CE(enable_next_window_delay[WR_DELAY]),
 						  .C(sys_clk_i),
-						  .R(!enabled_sysclk),
+						  .R(!enabled_sysclk_delay[WR_DELAY]),
 						  .Q(WR[5*i+4]));
-			FDRE u_wr3(.D(bank_plus_one[1]),
-						  .CE(enable_next_bank),
+			FDRE u_wr3(.D(bank_plus_one_delay[WR_DELAY][1]),
+						  .CE(enable_next_bank_delay[WR_DELAY]),
 						  .C(sys_clk_i),
-						  .R(!enabled_sysclk),
+						  .R(!enabled_sysclk_delay[WR_DELAY]),
 						  .Q(WR[5*i+3]));
-			FDRE u_wr2(.D(bank_plus_one[0]),
-						  .CE(enable_next_bank),
+			FDRE u_wr2(.D(bank_plus_one_delay[WR_DELAY][0]),
+						  .CE(enable_next_bank_delay[WR_DELAY]),
 						  .C(sys_clk_i),
-						  .R(!enabled_sysclk),
+						  .R(!enabled_sysclk_delay[WR_DELAY]),
 						  .Q(WR[5*i+2]));
-			FDRE u_wr1(.D(window_plus_one[2]),
-						  .CE(enable_next_window),
+			FDRE u_wr1(.D(window_plus_one_delay[WR_DELAY][2]),
+						  .CE(enable_next_window_delay[WR_DELAY]),
 						  .C(sys_clk_i),
-						  .R(!enabled_sysclk),
+						  .R(!enabled_sysclk_delay[WR_DELAY]),
 						  .Q(WR[5*i+1]));
-			FDRE u_wr0(.D(window_plus_one[1]),
-						  .CE(enable_next_window),
+			FDRE u_wr0(.D(window_plus_one_delay[WR_DELAY][1]),
+						  .CE(enable_next_window_delay[WR_DELAY]),
 						  .C(sys_clk_i),
-						  .R(!enabled_sysclk),
+						  .R(!enabled_sysclk_delay[WR_DELAY]),
 						  .Q(WR[5*i+0]));
 		end
 	endgenerate
