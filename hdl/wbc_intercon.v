@@ -13,10 +13,11 @@ module wbc_intercon(
 		input rst_i,
 		// Masters.
 		`WBS_NAMED_PORT(bmc, 32, 22, 4),
-		`WBS_NAMED_PORT(spic, 32, 22, 4),
+		`WBS_NAMED_PORT(spid, 32, 22, 4),
 		`WBS_NAMED_PORT(pciec, 32, 22, 4),
 		// Slaves. 
 		`WBM_NAMED_PORT(rad_id_ctrl, 32, 16, 4),
+		`WBM_NAMED_PORT(spic, 32, 16, 4),
 		`WBM_NAMED_PORT(l4_ctrl, 32, 16, 4),
 		`WBM_NAMED_PORT(l4_ram, 32, 16, 4),
 		`WBM_NAMED_PORT(trig, 32, 16, 4),
@@ -27,7 +28,9 @@ module wbc_intercon(
     parameter DEBUG = `WBC_INTERCON_DEBUG;
 
 	localparam [19:0] RAD_ID_CTRL_BASE     = 22'h000000;
-	localparam [19:0] RAD_ID_CTRL_MASK     = 22'h30FFFF;	// match xx 0000: 0x00000-0x0FFFF (16-bit)
+	localparam [19:0] RAD_ID_CTRL_MASK     = 22'h307FFF;	// match xx 0000 0: 0x00000-0x07FFF (15-bit)
+	localparam [19:0] SPIC_BASE            = 22'h008000;
+	localparam [19:0] SPIC_MASK            = 22'h307FFF;    // match xx 0000 1: 0x08000-0x0FFFF (15-bit)	
 	localparam [19:0] L4_CTRL_BASE         = 22'h010000;
 	localparam [19:0] L4_CTRL_MASK	       = 22'h30FFFF;	// match xx 0001: 0x10000-0x1FFFF (16-bit)
 	localparam [19:0] L4_RAM_BASE		   = 22'h020000;	
@@ -39,7 +42,7 @@ module wbc_intercon(
 	localparam [19:0] CALRAM_BASE          = 22'h080000;     
     localparam [19:0] CALRAM_MASK          = 22'h37FFFF;    // match xx 1xxx: 0x80000-0xFFFFF (19-bit)
 	wire bmc_gnt;
-	wire spic_gnt;
+	wire spid_gnt;
 	wire pciec_gnt;
 	// Simple round robin arbiter for right now. Stolen from asic-world.
 //	arbiter u_arbiter(.clk(clk_i),.rst(rst_i),
@@ -48,7 +51,7 @@ module wbc_intercon(
 //							.req2(pciec_cyc_i),.gnt2(pciec_gnt),
 //							.req3(wbvio_cyc_i),.gnt3(wbvio_gnt));							
 	// Switch to expandable round-robin arbiter
-    localparam NUM_SLAVES = 6;
+    localparam NUM_SLAVES = 7;
 	localparam NUM_MASTERS = 3;
 	wire [NUM_MASTERS-1:0] requests;
 	wire [NUM_MASTERS-1:0] grants;
@@ -72,7 +75,7 @@ module wbc_intercon(
 		assign x``_dat_o = muxed_dat_i
 	
 	`MASTER(bmc, 0);
-	`MASTER(spic, 1);
+	`MASTER(spid, 1);
 	`MASTER(pciec, 2);
 	// The multiplexer is harder to code automatically because it needs to be done in a define. 
 	
@@ -92,10 +95,10 @@ module wbc_intercon(
 	reg [31:0] dat_o;
 	reg [3:0] sel;
 	always @(*) begin
-		if (spic_gnt) begin 
-			adr <= spic_adr_i;
-			dat_o <= spic_dat_i;
-			sel <= spic_sel_i;
+		if (spid_gnt) begin 
+			adr <= spid_adr_i;
+			dat_o <= spid_dat_i;
+			sel <= spid_sel_i;
 		end else if (pciec_gnt) begin
 			adr <= pciec_adr_i;
 			dat_o <= pciec_dat_i;
@@ -118,12 +121,14 @@ module wbc_intercon(
 		assign prefix``_sel_o = sel
 
 	`SLAVE_MAP( rad_id_ctrl, RAD_ID_CTRL_MASK, RAD_ID_CTRL_BASE );
+	`SLAVE_MAP( spic, SPIC_MASK, SPIC_BASE );
 	`SLAVE_MAP( l4_ctrl, L4_CTRL_MASK, L4_CTRL_BASE );
 	`SLAVE_MAP( l4_ram,  L4_RAM_MASK, L4_RAM_BASE );
 	`SLAVE_MAP( trig, TRIG_MASK, TRIG_BASE );
 	`SLAVE_MAP( scal, SCAL_MASK, SCAL_BASE );
 	`SLAVE_MAP( calram, CALRAM_MASK, CALRAM_BASE );
-	
+
+    // I need some magic way of cleaning this loop up.	
 	always @(*) begin
 		if (sel_l4_ram) begin
 			muxed_ack <= l4_ram_ack_i;
@@ -150,6 +155,11 @@ module wbc_intercon(
             muxed_err <= calram_err_i;
             muxed_rty <= calram_rty_i;
             muxed_dat_i <= calram_dat_i;
+        end else if (sel_spic) begin
+            muxed_ack <= spic_ack_i;
+            muxed_err <= spic_err_i;
+            muxed_rty <= spic_rty_i;
+            muxed_dat_i <= spic_dat_i;
 		end else begin
 			muxed_ack <= rad_id_ctrl_ack_i;
 			muxed_err <= rad_id_ctrl_err_i;
@@ -171,32 +181,32 @@ module wbc_intercon(
 //	reg [31:0] dat_o;
 //	reg [3:0] sel;
 
-	reg [31:0] wbc_debug_data = {32{1'b0}};
-	reg [21:0] wbc_debug_adr = {22{1'b0}};
-	reg [3:0] wbc_debug_sel = {4{1'b0}};
-	reg wbc_debug_cyc = 0;
-	reg wbc_debug_stb = 0;
-	reg wbc_debug_ack = 0;
-	reg wbc_debug_we = 0;
-	reg wbc_debug_err_rty = 0;
-	reg [NUM_MASTERS-1:0] wbc_debug_gnt = {NUM_MASTERS{1'b0}};
-	reg [NUM_SLAVES-1:0] wbc_debug_ssel = {NUM_SLAVES{1'b0}};
-	always @(posedge clk_i) begin
-		if (we) wbc_debug_data <= dat_o;
-		else wbc_debug_data <= muxed_dat_i;
-		
-		wbc_debug_adr <= adr;
-		wbc_debug_cyc <= cyc;
-		wbc_debug_sel <= sel;
-		wbc_debug_stb <= stb;
-		wbc_debug_we <= we;
-		wbc_debug_ack <= muxed_ack;
-		wbc_debug_err_rty <= muxed_err | muxed_rty;
-		wbc_debug_gnt <= grants;
-		wbc_debug_ssel <= { sel_scal, sel_trig, sel_l4_ram, sel_l4_ctrl, sel_rad_id_ctrl };
-	end
 	generate
 	   if (DEBUG == "TRUE") begin : INTILA
+        reg [31:0] wbc_debug_data = {32{1'b0}};
+        reg [21:0] wbc_debug_adr = {22{1'b0}};
+        reg [3:0] wbc_debug_sel = {4{1'b0}};
+        reg wbc_debug_cyc = 0;
+        reg wbc_debug_stb = 0;
+        reg wbc_debug_ack = 0;
+        reg wbc_debug_we = 0;
+        reg wbc_debug_err_rty = 0;
+        reg [NUM_MASTERS-1:0] wbc_debug_gnt = {NUM_MASTERS{1'b0}};
+        reg [NUM_SLAVES-1:0] wbc_debug_ssel = {NUM_SLAVES{1'b0}};
+        always @(posedge clk_i) begin
+            if (we) wbc_debug_data <= dat_o;
+            else wbc_debug_data <= muxed_dat_i;
+            
+            wbc_debug_adr <= adr;
+            wbc_debug_cyc <= cyc;
+            wbc_debug_sel <= sel;
+            wbc_debug_stb <= stb;
+            wbc_debug_we <= we;
+            wbc_debug_ack <= muxed_ack;
+            wbc_debug_err_rty <= muxed_err | muxed_rty;
+            wbc_debug_gnt <= grants;
+            wbc_debug_ssel <= { sel_calram, sel_scal, sel_trig, sel_l4_ram, sel_l4_ctrl, sel_spic, sel_rad_id_ctrl };
+        end	   
         intercon_ila u_ila(.clk(clk_i),
                            .probe0(wbc_debug_data),
                            .probe1(wbc_debug_adr),
