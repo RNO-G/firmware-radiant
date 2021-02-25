@@ -13,7 +13,8 @@ module radiant_top( input SYS_CLK_P,
                     output [1:0] CCLK_TMS,
                     output [1:0] SCLK_TCK,
                     inout [1:0] SSINCR_TDO,
-                    output [1:0] RAMP,
+                    
+                    inout [1:0] RAMP,
                     
                     output [23:0] PCLK,
                     output [23:0] WCLK_P,
@@ -32,12 +33,29 @@ module radiant_top( input SYS_CLK_P,
                     inout SYNCMON,
                     
                     output REGCLR,
-                    
+                                        
                     output [1:0] SST_SEL,
                     
                     input [23:0] TRIG,
                     input [23:0] THRESH,
                     output [23:0] THRESH_PWM,
+                    // not actually differential in this usage
+                    // we just drive them to ground (on both sides) to maybe
+                    // improve signal integrity and reserve differential usage
+                    // for later
+                    input CB_SCLK_P,
+                    output CB_SCLK_N,
+                    
+                    input CB_MOSI_P,
+                    output CB_MOSI_N,
+                    
+                    output CB_MISO_P,
+                    output CB_MISO_N,
+                    
+                    input CB_CS_B_P,
+                    output CB_CS_B_N,
+
+                    output PROG_FULL,
 
                     output JTAGENB,
                     output MOSI,
@@ -48,10 +66,16 @@ module radiant_top( input SYS_CLK_P,
                     output F_LED
     );
 
+    // drive virtual grounds
+    assign CB_SCLK_N = 1'b0;
+    assign CB_MOSI_N = 1'b0;
+    assign CB_MISO_N = 1'b0;
+    assign CB_CS_B_N = 1'b0;
+
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
-    parameter [3:0] VER_MINOR = 1;
-    parameter [7:0] VER_REV = 1;
+    parameter [3:0] VER_MINOR = 2;
+    parameter [7:0] VER_REV = 0;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
@@ -100,11 +124,16 @@ module radiant_top( input SYS_CLK_P,
     IBUFDS u_sysclk_ibuf(.I(SYS_CLK_P),.IB(SYS_CLK_N),.O(sysclk_in));
 
     `WB_DEFINE( bmc , 32, 22, 4 );
-    `WB_DEFINE( spic, 32, 22, 4 );
+    `WB_DEFINE( spid, 32, 22, 4 );
     `WB_DEFINE( pciec,32, 22, 4 );
-    `WB_DEFINE( spid, 32, 16, 4 );
     
+    // this is a dummy bus, around for legacy reasons
+    `WB_DEFINE( l4_ram_dummy, 32, 22, 4);
+    
+    // not really 16 bits, actually only 15
     `WB_DEFINE( rad_id_ctrl, 32, 16, 4);
+    // not really 16 bits, actually only 15
+    `WB_DEFINE( spic, 32, 16, 4);
     `WB_DEFINE( l4_ctrl, 32, 16, 4);
     `WB_DEFINE( l4_ram, 32, 16, 4);
     `WB_DEFINE( trig, 32, 16, 4);
@@ -112,9 +141,8 @@ module radiant_top( input SYS_CLK_P,
     `WB_DEFINE( calram, 32, 19, 4);
     
     `WBM_KILL( scal, 32);
-    
-    `WB_KILL(spic, 32, 22, 4);
     `WB_KILL(pciec, 32, 22, 4);
+    `WB_KILL(l4_ram_dummy, 32, 22, 4);
         
     // The boardman_interface is "close enough" to a WISHBONE classic interface, we just set
     // reg_en = cyc = stb
@@ -137,9 +165,10 @@ module radiant_top( input SYS_CLK_P,
     
     wbc_intercon u_intercon( .clk_i(CLK50),.rst_i(1'b0),
                             `WBS_CONNECT( bmc ,     bmc ),
-                            `WBS_CONNECT( spic,     spic),
+                            `WBS_CONNECT( spid,     spid),
                             `WBS_CONNECT( pciec,    pciec),
                             `WBM_CONNECT( rad_id_ctrl, rad_id_ctrl),
+                            `WBM_CONNECT( spic, spic),
                             `WBM_CONNECT( l4_ctrl, l4_ctrl),
                             `WBM_CONNECT( l4_ram, l4_ram),
                             `WBM_CONNECT( trig , trig),
@@ -151,6 +180,8 @@ module radiant_top( input SYS_CLK_P,
     wire [1:0] shout;
     wire [`LAB4_WR_WIDTH-1:0] reset_wr;
     wire [1:0] invert_montiming;
+    wire spiclk;
+    wire [1:0] rampdone_in;
     rad_id_ctrl #(.DEVICE(IDENT),.VERSION(DATEVERSION),.MONTIMING_POLARITY(CPLD_MT_POLARITY)) u_id(.clk_i(CLK50),.rst_i(1'b0),
                      `WBS_CONNECT( rad_id_ctrl, wb ),
                      .sys_clk_in(sysclk_in),
@@ -160,7 +191,7 @@ module radiant_top( input SYS_CLK_P,
                      .sync_o(sync),
                      .sync_reset_i(),
                      .wclk_o(wclk),
-                     
+                     .spiclk_o(spiclk),
                      .reset_wr_o(reset_wr),
                      .invert_montiming_o(invert_montiming),
                      
@@ -176,6 +207,9 @@ module radiant_top( input SYS_CLK_P,
                      .ss_incr_i(ss_incr),
                      .sclk_i(sclk),
                      .shout_o(shout),
+                     
+                     .rampdone_i(rampdone_in),
+                     
                      .JTAGENB(JTAGENB),
                      .SST_SEL(SST_SEL),
                      .SSINCR_TDO(SSINCR_TDO),
@@ -249,6 +283,7 @@ module radiant_top( input SYS_CLK_P,
                                    .complete_i(readout_complete),
                                    
                                    .montiming_i(montiming_reg),
+                                   .ramp_in_o(rampdone_in),
                                    // END MAKE THESE REAL
                                    .SIN(SIN),
                                    .SCLK(sclk),
@@ -268,7 +303,9 @@ module radiant_top( input SYS_CLK_P,
             u_l4ram(.clk_i(CLK50),
                     .rst_i(1'b0),
                     `WBS_CONNECT(l4_ram, wb),
-                    `WBS_CONNECT(spid, wbdma),
+                    // In the SURF5 the LAB4D RAM had two ports, and swapped between them
+                    // We're not going to do that: we're treating the WB bus as fully shared.
+                    `WBS_CONNECT(l4_ram_dummy, wbdma),
                     .sys_clk_i(sysclk),
                     .wclk_i(wclk),
                     .readout_test_pattern_i(readout_test_pattern),
@@ -307,13 +344,120 @@ module radiant_top( input SYS_CLK_P,
                                                              .THRESH_PWM(THRESH_PWM));                                  
     
     reg [24:0] counter = {25{1'b0}};
-    
-    always @(posedge sysclk) counter <= counter[23:0] + 1;
+    reg [1:0]  pulse_catch = {2{1'b0}};
+    reg        pulse_enable = 0;
+    // just... do it every 64 for now. We need to make this controllable
+    // via a register and use a freakin DSP
+    always @(posedge sysclk) begin
+        counter <= counter[23:0] + 1;
+        // counter[0] would be every 2
+        // counter[1] would be every 4
+        // counter[2] would be every 8
+        // counter[3] would be every 16
+        // counter[4] would be every 32
+        pulse_catch <= {pulse_catch[0],counter[5]};
+        pulse_enable <= pulse_catch[0] && !pulse_catch[1];
+    end
+
         
     wire pulse_out;
-    ODDR u_oddrpulse(.D1(1'b1),.D2(1'b0),.CE(counter[24]),.C(sysclk),.S(1'b0),.R(1'b0),.Q(pulse_out));
+    ODDR u_oddrpulse(.D1(1'b1),.D2(1'b0),.CE(pulse_enable),.C(sysclk),.S(1'b0),.R(1'b0),.Q(pulse_out));
     OBUFDS u_obufpulse(.I(pulse_out),.O(PULSE_P),.OB(PULSE_N));
+    
+    // SPI DMA module!
+    spidma u_spidma( .wb_clk_i(CLK50),
+                     .wb_rst_i(1'b0),
+                     `WBS_CONNECT( spic , wb ),
+                     `WBM_CONNECT( spid , wbdma ),
+                     // LATER: this will come from the event module in the trigger path
+                     .dma_req_i(1'b0),
+                     .dma_rdy_o(),
+                     .fast_clk_i(spiclk),
+                     .PROG_FULL(PROG_FULL),
+                     .SCLK(CB_SCLK_P), 
+                     .MISO(CB_MISO_P), 
+                     .MOSI(CB_MOSI_P), 
+                     .CS_B(CB_CS_B_P));
+                     
+
+//    // OK, dumbass ILA to test SPI stuff.
+//    // We'll try running at 200 MHz. If that works I should be able to handle that clock rate.
+//    // Maybe literally just run an IOFIFO as a single-bit FIFO and just keep it full. Will see.
+//    // The damn I/O technically can't toggle this fast, but we don't need it to.
+//    (* IOBUF = "TRUE" *)
+//    reg dbg_sclk = 0;
+    
+//    reg dbg_sclk_reg = 0;
+    
+//    (* IOBUF = "TRUE" *)
+//    reg dbg_mosi = 0;    
+//    (* IOBUF = "TRUE" *)
+//    reg dbg_miso = 0;
+    
+//    reg ila_miso = 0;    
+    
+//    (* IOBUF = "TRUE" *)
+//    reg dbg_cs = 0;
+    
+//    reg dbg_cs_reg = 0;
+//    // OK: so let's try to do this via an OSERDES now.
+
+//    // LET'S DO THE SPI SHUFFLE!
+////    reg do_load = 0;
+////    wire [31:0] value_in;
+////    reg [31:0] value_in_rereg = {32{1'b0}};
+////    reg [31:0] shift_reg = {32{1'b0}};
+////    vio_spi_test u_vio(.clk(wclk),.probe_out0(value_in));
+    
+//    // *This* is nominally fast enough.
+//    //
+//    // The key is that we need to make sure MISO's clock enable
+//    // is (dbg_sclk && !dbg_sclk_reg) NO MATTER WHAT.
+//    // We might as well add do_load to that list as well: but what
+//    // we'll do is offset do_load by 1, so we'll actually do:
+//    // 
+////    always @(posedge wclk) begin
+////        value_in_rereg <= value_in;
         
+////        do_load <= !dbg_cs && dbg_cs_reg;
+
+////        // 1st clock with dbg_sclk high is AT MOST 10 ns after SCLK rises
+////        // 2nd clock (to get back out) is AT MOST 15 ns.
+////        // MAAYBE this will work?
+////        // note that if this works we'll *actually* hook it up to a FIFO
+////        // (maybe an OUT_FIFO) and then adapt the width so we can feed it
+////        // slower.
+////        if (do_load) shift_reg <= value_in_rereg;
+////        else if (dbg_sclk && !dbg_sclk_reg) shift_reg <= {shift_reg[30:0], 1'b0};        
+    
+////        dbg_sclk <= CB_SCLK_P;
+////        dbg_sclk_reg <= dbg_sclk;
+////        dbg_mosi <= CB_MOSI_P;
+////        dbg_miso <= (dbg_sclk && !dbg_sclk_reg) ? shift_reg[30] : shift_reg[31];
+////        dbg_cs <= CB_CS_B_P;
+////        dbg_cs_reg <= dbg_cs;
+        
+////        ila_miso <= (dbg_sclk && !dbg_sclk_reg) ? shift_reg[30] : shift_reg[31];
+////    end
+////    assign CB_MISO_P = dbg_miso;
+////    cb_spi_ila u_ila(.clk(wclk),.probe0(dbg_sclk),.probe1(dbg_mosi),.probe2(ila_miso),.probe3(dbg_cs));
+
+//    wire [7:0] s_axis_tdata;
+//    wire       vio_load;
+//    reg        vio_load_reg = 0;
+//    reg       s_axis_tvalid = 0;
+//    wire      s_axis_tready;
+//    always @(posedge wclk) begin
+//        vio_load_reg <= vio_load;
+//        if (vio_load && !vio_load_reg) s_axis_tvalid <= 1;
+//        else if (s_axis_tready) s_axis_tvalid <= 0;
+//    end
+//    fast_spi_vio_debug u_vio(.clk(wclk),.probe_in0(s_axis_tvalid),.probe_out0(s_axis_tdata),.probe_out1(vio_load));    
+//    fast_spi_fifo u_fifo(.aclk(wclk),.aresetn(1'b1),.s_axis_tdata(s_axis_tdata),.s_axis_tvalid(s_axis_tvalid),.s_axis_tready(s_axis_tready),
+//                         .SCLK(CB_SCLK_P),
+//                         .MISO(CB_MISO_P),
+//                         .MOSI(CB_MOSI_P),
+//                         .CS_B(CB_CS_B_P));
     assign CLK50_EN = 1'b1;
     assign WPB = 1'b1;
     assign HOLDB = 1'b1;
