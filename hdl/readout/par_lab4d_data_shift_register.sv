@@ -11,11 +11,19 @@
 // Author:
 // Author:
 ////////////////////////////////////////////////////////////////////////////////
+//
+// Note: right now the only way to deal with a long SRCLK -> DOE delay
+// is to slow down the whole thing via the prescale register. This is incredibly
+// dumb, since I know that the sequence works up to 50 MHz at least.
+// So what I want to do next is to add a variable delay to the whole setup
+// where I delay the input bit and also delay shreg_ce through SRLs, but
+// then I can adjust the relative delay of the capture and the data.
 module par_lab4d_data_shift_register #( parameter NUM_LAB4 = 12,
 					parameter NUM_SRCLK = 12,
 					parameter [NUM_SRCLK-1:0] SRCLK_POLARITY = {NUM_SRCLK{1'b0}},
 					parameter NUM_SS_INCR = 12,
-					parameter LAB4_BITS = 12
+					parameter LAB4_BITS = 12,
+					parameter DEBUG = `LAB4D_DATA_REGISTER_DEBUG
 				       
 )(
 		input sys_clk_i,
@@ -25,6 +33,7 @@ module par_lab4d_data_shift_register #( parameter NUM_LAB4 = 12,
 		output done_o,
 		output [LAB4_BITS*NUM_LAB4-1:0] dat_o,
 		output dat_wr_o,
+		input [3:0] delay_i,
 		input [3:0] prescale_i,
 		output srclk_o,
 		output ss_incr_o,
@@ -35,6 +44,8 @@ module par_lab4d_data_shift_register #( parameter NUM_LAB4 = 12,
 		output [NUM_SS_INCR-1:0] SS_INCR,
 		output [15:0] sample_debug
     );
+
+    
 
 	// Readout shift register in the LAB4D:
 	// Basically it's just clock out 12 bits and have SS_INCR low in the last clock cycle.
@@ -103,7 +114,7 @@ module par_lab4d_data_shift_register #( parameter NUM_LAB4 = 12,
 		// Prescale counter runs all the time.
 		if (readout_rst_i) prescale_counter <= {4{1'b0}};
 		else if (prescale_counter == prescale_i) prescale_counter <= {4{1'b0}};
-		else prescale_counter <= {4{1'b0}};		
+		else prescale_counter <= prescale_counter + 1;		
 	
 		// Bit counter increments in SHIFT_LOW or RESET_HIGH.
 		if (readout_rst_i) bit_counter <= {4{1'b0}};
@@ -119,8 +130,10 @@ module par_lab4d_data_shift_register #( parameter NUM_LAB4 = 12,
 		
 		// Sample counter increments in SHIFT_LOW when bit_counter is at maximum.
 		if (readout_rst_i) sample_counter <= {7{1'b0}};
-		else if (state == IDLE || state == DONE) sample_counter <= {7{1'b0}};
-		else if (state == SHIFT_LOW && bit_counter == MAX_BITS-1) sample_counter <= sample_counter_plus_one;
+		else if (ce) begin
+		  if (state == IDLE || state == DONE) sample_counter <= {7{1'b0}};
+		  else if (state == SHIFT_LOW && bit_counter == MAX_BITS-1) sample_counter <= sample_counter_plus_one;
+        end
 
 		// Readout request seen goes high when seeing readout_i, and cleared at SHIFT_HIGH.
 		if (readout_rst_i) readout_request_seen <= 0;
@@ -166,18 +179,20 @@ module par_lab4d_data_shift_register #( parameter NUM_LAB4 = 12,
 		if (ss_incr_ce) dbg_ss_incr <= ss_incr_d;
 	end
 
+    wire [NUM_LAB4-1:0] shreg_msbs;
 	generate
-		genvar i;
+		genvar i,j;
 		for (i=0;i<NUM_LAB4;i=i+1) begin : LAB
-			wire shreg_msb;
 			reg [LAB4_BITS-2:0] data_shreg = {LAB4_BITS-1{1'b0}};
 			// Always have DOE clock in constantly. It just only gets added to the shreg occasionally.
 			(* IOB = "TRUE" *)
-			FDRE #(.INIT(1'b0)) u_shreg(.D(DOE[i]),.CE(1'b1),.C(sys_clk_i),.R(1'b0),.Q(shreg_msb));
+			FDRE #(.INIT(1'b0)) u_shreg(.D(DOE[i]),.CE(1'b1),.C(sys_clk_i),.R(1'b0),.Q(shreg_msbs[i]));
 			always @(posedge sys_clk_i) begin : SHREG
-				if (shreg_ce) data_shreg <= {shreg_msb,data_shreg[10:1]};
+				if (shreg_ce) data_shreg <= {shreg_msbs[i],data_shreg[10:1]};
 			end
-			assign dat_o[12*i +: 12] = {shreg_msb, data_shreg};		   
+			// I don't think this is entirely right. Need to think about this. Maybe just output the data shreg
+			// and delay off the wr or something.
+			assign dat_o[12*i +: 12] = {shreg_msbs[i], data_shreg};		   
 		end
 	        for (i=0;i<NUM_SS_INCR;i=i+1) begin : SS
 			(* IOB = "TRUE" *)
@@ -191,14 +206,46 @@ module par_lab4d_data_shift_register #( parameter NUM_LAB4 = 12,
 				(* IOB = "TRUE" *)
 				FDRE #(.INIT(1'b1)) u_srclk(.D(~srclk_d),.CE(srclk_ce),.C(sys_clk_i),.R(1'b0),.Q(SRCLK[i]));
 			end	   
-		end
+		end		
+		if (DEBUG == "TRUE") begin : DBG
+            // make VIO 8 bits period
+            wire [7:0] vio_sel;
+            localparam L4NB = $clog2(NUM_LAB4);
+            // now find the max this can represent
+            localparam L4NBMAX = (1<<L4NB);
+            // now create an array that big
+            wire [LAB4_BITS-1:0] debug_lab_arr[L4NBMAX-1:0];  
+            wire [L4NB-1:0] sel_dbg = vio_sel[0 +: L4NB];            
+            reg [LAB4_BITS-1:0] debug_dat = {LAB4_BITS{1'b0}};
+            reg debug_ss_incr = 0;
+            reg debug_wr = 0;
+            reg debug_srclk = 0;
+            for (j=0;j<L4NBMAX;j=j+1) begin : DBGARR
+                if (j < NUM_LAB4) begin : REAL
+                    assign debug_lab_arr[j] = dat_o[12*j +: 12];
+                end else begin : DUM
+                    // simplify the decode: if L4NB = 4 (so L4NBMAX = 16),
+                    // then this is j-8. So if we only have 12,
+                    // 13 would map to 5, 14 would map to 6, 15 to 7.
+                    assign debug_lab_arr[j] = debug_lab_arr[j - (1<<(L4NB-1))];
+                end
+            end
+            always @(posedge sys_clk_i) begin : MUX
+                debug_dat <= debug_lab_arr[sel_dbg];
+                // and delay the control signals to match up to the delayed data.
+                debug_ss_incr <= ss_incr_o;
+                debug_wr <= dat_wr_o;
+                debug_srclk <= srclk_o;
+            end
+            lab4_data_debug_vio u_dbg_vio(.clk(sys_clk_i),.probe_out0(vio_sel));
+            // the 'shreg_msbs' are the direct copies of all DOE inputs
+            lab4_data_debug_ila u_dbg_ila(.clk(sys_clk_i),.probe0(debug_srclk),.probe1(debug_ss_incr),.probe2(debug_wr),.probe3(debug_dat),.probe4(shreg_msbs));
+		end		
 	endgenerate
 	
-	// debuggy-buggy parts
-	// we set the VIO output to 8 bits, *just cuz*.
-	wire [7:0] lab_select;
-	
-	
+    
+    
+		
 	assign sample_counter_o = sample_counter;
 	assign bit_counter_o = bit_counter;
 	assign srclk_o = dbg_srclk;
