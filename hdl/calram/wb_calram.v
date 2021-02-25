@@ -22,7 +22,9 @@
 // addr 0: bit 0: enable
 //         bit 1: address counter reset (one-shot, no need to reset)
 //         bit 2: ZC full
+//         bit 3: roll complete (set when a roll completes, cleared by any other write)
 // addr 1: bit 0: ZC mode (if 0, pedestal mode). MUST WRITE THIS REGISTER FIRST, either 0 or 1!
+//         bit 1: zero (if set, the BRAMs will be fed with zero, regardless)
 // addr 2: bits [31:0] = roll counter. This counts the number of 4096 chunks we've processed.
 `include "wishbone.vh"
 module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
@@ -62,6 +64,10 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
     flag_sync u_wrsync(.in_clkA(config_wr),.clkA(clk_i),.out_clkB(config_wr_sysclk),.clkB(sys_clk_i));
 
     reg zc_mode = 0;
+    reg zero_mode = 0;
+    // stop Vivado from whining
+    (* ASYNC_REG = "TRUE" *)
+    reg [1:0] zero_mode_sysclk = {2{1'b0}};
     reg reset_counter = 0;    
     wire reset_counter_sysclk;
     flag_sync u_resetsync(.in_clkA(reset_counter),.clkA(clk_i),.out_clkB(reset_counter_sysclk),.clkB(sys_clk_i));
@@ -75,6 +81,12 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
     wire rollover_clk;
     flag_sync u_rollsync(.in_clkA(rollover_sysclk),.clkA(sys_clk_i),.out_clkB(rollover_clk),.clkB(clk_i));
 
+    wire wr_sysclk = lab_wr_i[0];
+    reg roll_complete_sysclk = 0;
+    (* ASYNC_REG = "TRUE" *)
+    reg [1:0] roll_complete_clk = {2{1'b0}};
+    
+
     wire [47:0] roll_count;
     dsp_counter_terminal_count #(.FIXED_TCOUNT("TRUE"),.FIXED_TCOUNT_VALUE(32'hFFFFFFFF),.HALT_AT_TCOUNT("TRUE"))
         u_roll_counter(.clk_i(clk_i),
@@ -83,7 +95,7 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
                        .tcount_reached_o(),
                        .count_o(roll_count));
 
-    wire [31:0] en_reg = { {30{1'b0}}, zc_full_clk, 1'b0, en_clk };
+    wire [31:0] en_reg = { {29{1'b0}}, roll_complete_clk[1], zc_full_clk, 1'b0, en_clk };
     wire [31:0] mode_reg = { {31{1'b0}}, zc_mode };
     wire [31:0] count_reg = roll_count[31:0];
     wire [31:0] control_mux[3:0];
@@ -118,12 +130,15 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
     assign wb_rty_o = 1'b0;
     
     always @(posedge clk_i) begin    
+        roll_complete_clk <= { roll_complete_clk[0], roll_complete_sysclk };
+    
         wr_reg <= wr;        
         if (chunk_addr == 24 && local_addr == 0 && wr) en_clk <= wb_dat_i[0];
 
         if (chunk_addr == 24 && local_addr == 0 && wr) reset_counter <= wb_dat_i[1];
         else reset_counter <= 0;
-        if (chunk_addr == 24 && local_addr == 1 && wr) zc_mode <= wb_dat_i[2];
+        if (chunk_addr == 24 && local_addr == 1 && wr) zc_mode <= wb_dat_i[0];
+        if (chunk_addr == 24 && local_addr == 1 && wr) zero_mode <= wb_dat_i[1];
         if (chunk_addr == 24 && local_addr == 1 && wr) config_wr <= 1;
         else config_wr <= 0;        
 
@@ -133,6 +148,11 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
     end        
 
     always @(posedge sys_clk_i) begin
+        zero_mode_sysclk <= {zero_mode_sysclk[0], zero_mode};
+    
+        if (wr_sysclk) roll_complete_sysclk <= 0;
+        else if (rollover_sysclk) roll_complete_sysclk <= 1;
+    
         if (en_wr_sysclk) en_sysclk <= {NUM_LABS{en_clk}};
         else if (|(zc_full & calram_rollover)) en_sysclk <= {NUM_LABS{1'b0}};
         
@@ -143,6 +163,7 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
     generate
         genvar i;
         for (i=0;i<NUM_LABS;i=i+1) begin : LL
+            localparam DEBUG = (i == 0) ? "TRUE" : "FALSE";
             reg rollover_reg = 0;
             assign calram_rollover[i] = rollover_reg;
             wire max_reached;
@@ -154,22 +175,23 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
             dsp_counter_terminal_count #(.FIXED_TCOUNT("TRUE"),.FIXED_TCOUNT_VALUE(4095),.HALT_AT_TCOUNT("TRUE"))
                 u_lab_counter(.clk_i(sys_clk_i),
                               .rst_i(reset_counter_sysclk || rollover_reg),
-                              .count_i(lab_wr_i[i]),
+                              .count_i(calram_done[i]),
                               .tcount_reached_o(max_reached),
                               .count_o(cur_count));
             assign lab_addr[i] = cur_count[11:0];
-            calram_pedestal u_ram(.sys_clk_i(sys_clk_i),
+            calram_pedestal #(.DEBUG(DEBUG)) u_ram(.sys_clk_i(sys_clk_i),
                                   .lab_dat_i(lab_dat_i[LAB4_BITS*i +: LAB4_BITS]),
                                   .lab_wr_i(lab_wr_i[i]),
                                   .lab_adr_i(lab_addr[i]),
                                   .en_i(en_sysclk[i]),
                                   .config_wr_i(config_wr_sysclk),
                                   .zc_mode_i(zc_mode),
+                                  .zero_i(zero_mode_sysclk[1]),
                                   .zc_full_o(zc_full[i]),
                                   .done_o(calram_done[i]),
                                   .clk_i(clk_i),
                                   .bram_en_i( wb_cyc_i && wb_stb_i ),
-                                  .bram_wr_i( wb_cyc_i && wb_stb_i && wb_we_i && (chunk_addr == i) ),
+                                  .bram_wr_i( wb_cyc_i && wb_stb_i && wb_we_i && ((chunk_addr == i) || &chunk_addr) ),
                                   .ack_o(calram_ack[i]),
                                   .adr_i(wb_ram_addr),
                                   .dat_i(wb_dat_i[26:0]),

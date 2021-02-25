@@ -62,7 +62,8 @@
 // Resetting the DSPs can be done by writing to the magic write address of 31 (which selects all of them).
 // for all 4096 values. Yes, tedious, but simplest/least resource intensive method.
 //
-module calram_pedestal  #(parameter LAB4_BITS=12)
+module calram_pedestal  #(parameter LAB4_BITS=12,
+                          parameter DEBUG = "FALSE")
                          ( input                 sys_clk_i,
                            // Inputs from the LAB4 readout.
                            input [LAB4_BITS-1:0] lab_dat_i,
@@ -73,6 +74,10 @@ module calram_pedestal  #(parameter LAB4_BITS=12)
                            input                 config_wr_i,
                            input                 zc_mode_i,
                            output                zc_full_o,
+                           // This becomes the RSTP input on the DSPs.
+                           // If you set this and run a full 4096 in pedestal mode, all 3 BRAMs zero automatically.
+                           // If you set this and run a full 4096 in zc mode, the ZC BRAM (low bits) zero automatically.
+                           input                 zero_i,
                            // done_o goes high when we're done processing a sample.
                            output                done_o,
                            // clk_i side (RAM interface)                           
@@ -202,7 +207,7 @@ module calram_pedestal  #(parameter LAB4_BITS=12)
               .USE_DPORT("TRUE"),
               .USE_MULT("MULTIPLY")) 
               u_dspA(  .A({ {21{1'b0}}, bram_outA[0] }),.D( { {13{1'b0}}, lab_dat_i }),.B(dspA_b),.C({{21{1'b0}},bram_outA[2],bram_outA[1],{9{1'b0}}}),.CEC(en_i),.CEB2(config_wr_i),
-                       .RSTA(1'b0),.RSTB(1'b0),.RSTC(1'b0),.RSTD(1'b0),.RSTCTRL(1'b0),.RSTINMODE(1'b0),.RSTM(1'b0),.RSTP(1'b0),
+                       .RSTA(1'b0),.RSTB(1'b0),.RSTC(1'b0),.RSTD(1'b0),.RSTCTRL(1'b0),.RSTINMODE(1'b0),.RSTM(1'b0),.RSTP(zero_i),
                        .ACOUT(dspA_cascA_dspB),
                        .PCOUT(dspA_cascP_dspB),
                        .CARRYIN(0),
@@ -238,12 +243,34 @@ module calram_pedestal  #(parameter LAB4_BITS=12)
                       .ALUMODE(dspB_alumode),.CEALUMODE(config_wr_i),
                       .P(dspB_out),
                       .PATTERNDETECT(dspB_match),
-                       .RSTA(1'b0),.RSTB(1'b0),.RSTC(1'b0),.RSTD(1'b0),.RSTCTRL(1'b0),.RSTINMODE(1'b0),.RSTM(1'b0),.RSTP(1'b0),
+                       .RSTA(1'b0),.RSTB(1'b0),.RSTC(1'b0),.RSTD(1'b0),.RSTCTRL(1'b0),.RSTINMODE(1'b0),.RSTM(1'b0),.RSTP(zero_i),
                        .CLK(sys_clk_i));                      
+
+    // debugging takes:
+    // 1: lab_dat_i
+    // 2: lab_wr_i
+    // 3: lab_adr_i
+    // 4,5,6: bram_in (concat)
+    // 7: bram_wr (3 bit)
+    // 8: en_i
+    generate
+        if (DEBUG == "TRUE") begin : DBG
+            calram_debug_ila u_ila(.clk(sys_clk_i),
+                                   .probe0(lab_dat_i),
+                                   .probe1(lab_wr_i),
+                                   .probe2(lab_adr_i),
+                                   .probe3(bram_inA[0]),
+                                   .probe4(bram_inA[1]),
+                                   .probe5(bram_inA[2]),
+                                   .probe6(bram_wea),
+                                   .probe7(en_i));
+       end
+   endgenerate
+    
 
     // That's it: that's all this costs us (well, I mean, it's 48 BRAMs over everything so...)
     assign ack_o = (state == READ_ACK || state == WRITE_ACK);        
-    assign zc_full_o = zc_full;
+    assign zc_full_o = zc_full && !ped_mode;
 endmodule
                            
                            
