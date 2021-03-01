@@ -23,6 +23,9 @@
  `define PHASE_SCANNER_DEBUG "TRUE"
     // ILA for the RADIANT's trigger top
  `define RADIANT_TRIG_TOP_DEBUG "FALSE"
-    // ILA for the SPI DMA interface
+    // ILA for the SPI DMA interface (DON'T USE THIS IT'S WAY TOO FAST FOR AN ILA)
  `define FAST_SPI_FIFO_DEBUG "FALSE"
+    // ILA for the SPI DMA engine
+ `define SPIDMA_ENGINE_DEBUG "TRUE"    
+
 `endif
