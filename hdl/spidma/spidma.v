@@ -3,7 +3,7 @@
 //
 // DMA works by having a set of descriptors and length.
 // But we're not going to bounce around types, so that doesn't make sense.
-// So we only need 21 bits for address, 1 bit for a terminator, and 12 bits for length.
+// So we only need 20 bits for address, 1 bit for a terminator, and 12 bits for length.
 // That's 34 bits total. However, our address space doesn't *use* those top 2 bits yet
 // (and I'm going to slice up the RadID space for the DMA control, and embed the
 //  event path inside the trigger space, so we're not *expanding* anything).
@@ -20,6 +20,7 @@
 // bit [5] - byte mode
 // bit [7:6] - byte source/destination
 // bit [8] - enable receive FIFO (from SPI path)
+// bits[15:9] - cycle delay
 // bits[27:16] - SPI flag indicator threshold
 // bit [31] - enable SPI flag output
 // address 0x01:
@@ -46,6 +47,8 @@
 // bit [30:19]  cycle count
 // bit [31]     last descriptor
 `include "wishbone.vh"
+`include "radiant_debug.vh"
+`include "dsp_macros.vh"
 module spidma( input wb_clk_i,
                input wb_rst_i,
                `WBS_NAMED_PORT(wb, 32, 16, 4),
@@ -64,6 +67,8 @@ module spidma( input wb_clk_i,
                input MOSI,
                output MISO               
         );
+    
+    parameter DEBUG = `SPIDMA_ENGINE_DEBUG;
     
     localparam FSM_BITS = 4;
     localparam [FSM_BITS-1:0] IDLE = 0;
@@ -124,6 +129,10 @@ module spidma( input wb_clk_i,
     
     reg [11:0] transaction_counter = {12{1'b0}};
     
+    reg [6:0] cycle_delay = {7{1'b0}};
+    reg [6:0] cycle_count = {7{1'b0}};
+    wire cycle_delay_reached = cycle_delay == cycle_count;
+            
     wire [31:0] cur_descriptor;
     wire [17:0] descriptor_addr = cur_descriptor[0 +: 18];
     wire        descriptor_addr_incr = cur_descriptor[18];
@@ -195,7 +204,7 @@ module spidma( input wb_clk_i,
 //    );    
     
     wire [31:0] dma_control_regs[3:0];
-    assign dma_control_regs[0] = { enable_spitx_full, {4{1'b0}}, spitx_full_threshold, {7{1'b0}}, enable_spirx,       // 31:8
+    assign dma_control_regs[0] = { enable_spitx_full, {4{1'b0}}, spitx_full_threshold, cycle_delay, enable_spirx,       // 31:8
                                    dma_byte_target, dma_byte_mode, 1'b0, dma_direction, dma_allow_ext_req, dma_run, dma_enable };
     assign dma_control_regs[1] = {32{1'b0}};
     assign dma_control_regs[2] = cur_descriptor_num;
@@ -209,7 +218,7 @@ module spidma( input wb_clk_i,
         else if (state == TOSPI_STORE_2) tx_axis_tdata <= wbdma_data_reg[23:16];
         else tx_axis_tdata <= wbdma_data_reg[31:24];
     end
-     
+    
     always @(posedge wb_clk_i) begin
         ack <= wb_cyc_i && wb_stb_i;
         if (wb_cyc_i && wb_stb_i && wb_we_i && wb_adr_i[7]) descriptor_write <= wb_sel_i;
@@ -220,18 +229,20 @@ module spidma( input wb_clk_i,
             case (state)
                 IDLE: if (dma_run) state <= DECODE;
                 // Decode figures out where we go next. It doesn't depend on the descriptor at all.
-                // Decode is where the length counter increments.
-                DECODE: if (dma_direction) begin
-                    // FROMSPI. If we're byte mode, we need to figure out where we hop to.
-                    if (dma_byte_mode) begin
-                        if (dma_byte_target == 2'b00) state <= FROMSPI_FETCH_0;
-                        else if (dma_byte_target == 2'b01) state <= FROMSPI_FETCH_1;
-                        else if (dma_byte_target == 2'b10) state <= FROMSPI_FETCH_2;
-                        else if (dma_byte_target == 2'b11) state <= FROMSPI_FETCH_3;
-                    end else state <= FROMSPI_FETCH_0;
-                end else begin
-                    // TOSPI. Here we always go to READ.
-                    state <= TOSPI_READ;
+                // Decode is where the length counter increments (when we hit the cycle delay).
+                DECODE: if (cycle_delay_reached) begin
+                    if (dma_direction) begin
+                        // FROMSPI. If we're byte mode, we need to figure out where we hop to.
+                        if (dma_byte_mode) begin
+                            if (dma_byte_target == 2'b00) state <= FROMSPI_FETCH_0;
+                            else if (dma_byte_target == 2'b01) state <= FROMSPI_FETCH_1;
+                            else if (dma_byte_target == 2'b10) state <= FROMSPI_FETCH_2;
+                            else if (dma_byte_target == 2'b11) state <= FROMSPI_FETCH_3;
+                        end else state <= FROMSPI_FETCH_0;
+                    end else begin
+                        // TOSPI. Here we always go to READ.
+                        state <= TOSPI_READ;
+                    end
                 end
                 FROMSPI_FETCH_0: if (rx_axis_tvalid && rx_axis_tready) begin
                     if (dma_byte_mode) state <= FROMSPI_WRITE;
@@ -283,12 +294,12 @@ module spidma( input wb_clk_i,
         if (state == TOSPI_READ && wbdma_ack_i) begin
             wbdma_data_reg <= wbdma_dat_i;
         end else if (rx_axis_tvalid && rx_axis_tready) begin
-            if (state == FROMSPI_FETCH_0) wbdma_data_reg[7:0] <= rx_axis_tdata;
-            if (state == FROMSPI_FETCH_1) wbdma_data_reg[7:0] <= rx_axis_tdata;
-            if (state == FROMSPI_FETCH_2) wbdma_data_reg[7:0] <= rx_axis_tdata;
-            if (state == FROMSPI_FETCH_3) wbdma_data_reg[7:0] <= rx_axis_tdata;
+            if (state == FROMSPI_FETCH_0) wbdma_data_reg[0 +: 8] <= rx_axis_tdata;
+            if (state == FROMSPI_FETCH_1) wbdma_data_reg[8 +: 8] <= rx_axis_tdata;
+            if (state == FROMSPI_FETCH_2) wbdma_data_reg[16 +: 8] <= rx_axis_tdata;
+            if (state == FROMSPI_FETCH_3) wbdma_data_reg[24 +: 8] <= rx_axis_tdata;
         end               
-        if (state == DECODE) begin
+        if (state == DECODE && cycle_delay_reached) begin
             if (descriptor_addr_incr) wbdma_adr_reg <= descriptor_addr + transaction_counter;
             else wbdma_adr_reg <= descriptor_addr;
         end
@@ -298,7 +309,7 @@ module spidma( input wb_clk_i,
             else transaction_counter <= transaction_counter + 1;
         end
         if (state == IDLE) cur_descriptor_num <= {5{1'b0}};
-        else if ((state == FROMSPI_NEXT || state == TOSPI_NEXT) && descriptor_done) 
+        else if ((state == FROMSPI_NEXT || state == TOSPI_NEXT) && (transaction_counter==descriptor_len)) 
             cur_descriptor_num <= cur_descriptor_num + 1;
 
         if (dma_engine_reset) dma_run <= 0;
@@ -306,6 +317,10 @@ module spidma( input wb_clk_i,
             if (state == DONE) dma_run <= 0;
             else if (soft_dma_request || (dma_allow_ext_req && dma_req_i)) dma_run <= 1;
         end
+
+        // Super, super simple.
+        if (state != DECODE) cycle_delay <= {7{1'b0}};
+        else if (state == DECODE) cycle_delay <= cycle_delay + 1;
     
         // Our controllable bits are:
         // dma_direction
@@ -338,7 +353,10 @@ module spidma( input wb_clk_i,
         wbdma_sel_reg[3] <= !dma_byte_mode || (dma_byte_target == 2'b11);
         
         if (wb_cyc_i && wb_stb_i && wb_we_i && !wb_adr_i[7] && (wb_adr_i[3:2] == 2'b00)) begin
-            if (wb_sel_i[1]) enable_spirx <= wb_dat_i[8];
+            if (wb_sel_i[1]) begin
+                enable_spirx <= wb_dat_i[8];
+                cycle_delay <= wb_dat_i[9 +: 7];
+            end
             if (wb_sel_i[2]) spitx_full_threshold[7:0] <= wb_dat_i[16 +: 8];
             if (wb_sel_i[3]) begin
                 spitx_full_threshold[10:8] <= wb_dat_i[24 +: 3];
@@ -445,6 +463,19 @@ module spidma( input wb_clk_i,
                          .SCLK(SCLK),
                          .MOSI(MOSI),
                          .MISO(MISO));                                                            
+
+    generate
+        if (DEBUG == "TRUE") begin : ILA
+            spidma_ila u_ila(.clk(wb_clk_i),
+                             .probe0(state),
+                             .probe1(descriptor_addr),
+                             .probe2(descriptor_addr_incr),
+                             .probe3(descriptor_len),
+                             .probe4(descriptor_done),
+                             .probe5(cur_descriptor_num),
+                             .probe6(transaction_counter));
+         end
+     endgenerate
 
     assign wbdma_dat_o = wbdma_data_reg;
     assign wbdma_adr_o = {1'b0,wbdma_adr_reg,2'b00};
