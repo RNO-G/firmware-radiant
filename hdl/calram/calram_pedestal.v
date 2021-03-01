@@ -118,8 +118,8 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
         bram_en_delay <= { bram_en_delay[3:0], lab_wr_i && en_i };        
         // dspA becomes valid at bram_en_delay[3]
         bram_hwr <= bram_en_delay[2] && ped_mode;
-        // dspB is valid right after, but we only count if positive
-        bram_lwr <= bram_en_delay[3] && (ped_mode || zc_positive);
+        // dspB is valid right after, but we only count if positive OR if we're zeroing. 
+        bram_lwr <= bram_en_delay[3] && (ped_mode || zc_positive || zero_i);
         
         if (config_wr_i) zc_full <= 0;
         else if (dspB_match && bram_lwr) zc_full <= 1;
