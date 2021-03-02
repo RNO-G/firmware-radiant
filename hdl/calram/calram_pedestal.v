@@ -81,6 +81,12 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
                            // done_o goes high when we're done processing a sample.
                            output                done_o,
                            // clk_i side (RAM interface)                           
+
+                           // zc_read acts to kill the BRAM output on the
+                           // top 2 RAMs when read through WISHBONE.
+                           // Means you don't have to mask things out.
+                           input                 zc_read_i,
+
                            input                 clk_i,
                            input                 bram_en_i,
                            input                 bram_wr_i,
@@ -188,13 +194,15 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
     assign bram_inA[1] = dspA_out[9 +: 9];
     assign bram_inA[2] = dspA_out[18 +: 9];
     
+    wire [2:0] bram_rstb = { zc_read_i, zc_read_i, 1'b0 };
+    
     // OK, so here are our 3 BRAMs.
     generate
         genvar i;
         for (i=0;i<3;i=i+1) begin : BRAM
             BRAM_TDP_MACRO #(.DOA_REG(1), .BRAM_SIZE("36Kb"),.READ_WIDTH_A(9),.WRITE_WIDTH_A(9),.WRITE_MODE_A("WRITE_FIRST"),
                              .DOB_REG(1), .READ_WIDTH_B(9),.WRITE_WIDTH_B(9),.WRITE_MODE_B("WRITE_FIRST"))
-                        bram( .RSTA(1'b0),.RSTB(1'b0),
+                        bram( .RSTA(1'b0),.RSTB(bram_rstb[i]),
                               .DIA(bram_inA[i]),.ADDRA(lab_adr_i[11:0]),.WEA(bram_wea[i]),.ENA(en_i),.DOA(bram_outA[i]),.REGCEA(en_i),.CLKA(sys_clk_i),
                               .DIB(dat_i[9*i +: 9]),.ADDRB(adr_i[11:0]),.WEB(bramif_wr),.ENB(bramif_en),.REGCEB(bramif_regce),.DOB(dat_o[9*i +: 9]),.CLKB(clk_i));
         end

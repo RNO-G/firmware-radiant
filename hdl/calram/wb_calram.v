@@ -25,6 +25,8 @@
 //         bit 3: roll complete (set when a roll completes, cleared by any other write)
 // addr 1: bit 0: ZC mode (if 0, pedestal mode). MUST WRITE THIS REGISTER FIRST, either 0 or 1!
 //         bit 1: zero (if set, the BRAMs will be fed with zero, regardless)
+//         bit 2: ZC read mode (if 1, reads from the BRAM space will only read the low 9 bits - the ZC data)
+//                This ONLY AFFECTS the WISHBONE side, and DOES NOT affect writes!
 // addr 2: bits [31:0] = roll counter. This counts the number of 4096 chunks we've processed.
 `include "wishbone.vh"
 module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
@@ -102,6 +104,8 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
     
     reg control_ack = 0;
 
+    reg zc_read_mode = 0;
+
     assign control_mux[0] = en_reg;
     assign control_mux[1] = mode_reg;
     assign control_mux[2] = count_reg;
@@ -141,6 +145,8 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
         if (chunk_addr == 24 && local_addr == 1 && wr) zero_mode <= wb_dat_i[1];
         if (chunk_addr == 24 && local_addr == 1 && wr) config_wr <= 1;
         else config_wr <= 0;        
+
+        if (chunk_addr == 24 && local_addr == 1 && wr) zc_read_mode <= wb_dat_i[2];
 
         zc_full_clk <= {zc_full_clk[0], zc_full_reg };
 
@@ -192,6 +198,7 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
                                   .clk_i(clk_i),
                                   .bram_en_i( wb_cyc_i && wb_stb_i ),
                                   .bram_wr_i( wb_cyc_i && wb_stb_i && wb_we_i && ((chunk_addr == i) || &chunk_addr) ),
+                                  .zc_read_i(zc_read_mode),
                                   .ack_o(calram_ack[i]),
                                   .adr_i(wb_ram_addr),
                                   .dat_i(wb_dat_i[26:0]),
