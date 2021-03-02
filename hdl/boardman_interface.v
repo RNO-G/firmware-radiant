@@ -324,12 +324,22 @@ module boardman_interface(
                 .buffer_data_present(cobs_rx_tvalid),.data_out(cobs_rx_tdata),
                 .serial_in(BM_RX));
 
+    // Our "hard reset the interface" method: 4 null bytes (0) in a row.
+    reg [1:0] null_counter = {2{1'b0}};
+    reg cobs_reset = 0;
+    always @(posedge clk) begin
+        if (cobs_rx_tready && cobs_rx_tvalid && cobs_rx_tdata == 8'h00) null_counter[1:0] <= null_counter[1:0] + 1;
+        if (cobs_rx_tready && cobs_rx_tvalid && cobs_rx_tdata == 8'h00 && null_counter[1:0] == 2'b11) cobs_reset <= 1;
+        else cobs_reset <= 0;
+    end    
+                
+
     uart_tx6 tx(.clk(clk),.en_16_x_baud(en_16x_baud),.buffer_write(cobs_tx_tready && cobs_tx_tvalid),
                 .buffer_reset(rst),
                 .buffer_full(cobs_tx_full),.data_in(cobs_tx_tdata),
                 .serial_out(BM_TX));
 
-    axis_cobs_decode u_decoder(.clk(clk),.rst(rst),
+    axis_cobs_decode u_decoder(.clk(clk),.rst(rst || cobs_reset),
                                 .s_axis_tdata(cobs_rx_tdata),
                                 .s_axis_tvalid(cobs_rx_tvalid),
                                 .s_axis_tready(cobs_rx_tready),
@@ -340,7 +350,7 @@ module boardman_interface(
                                 .m_axis_tvalid(axis_rx_tvalid),
                                 .m_axis_tready(axis_rx_tready),
                                 .m_axis_tlast(axis_rx_tlast));
-    axis_cobs_encode u_encoder( .clk(clk), .rst(rst),
+    axis_cobs_encode u_encoder( .clk(clk), .rst(rst || cobs_reset),
                                 .s_axis_tdata(axis_tx_tdata),
                                 .s_axis_tvalid(axis_tx_tvalid),
                                 .s_axis_tready(axis_tx_tready),
@@ -371,16 +381,19 @@ module boardman_interface(
                                      .probe17(cobs_tx_tready),
                                      .probe18(cobs_tx_tvalid),
                                      .probe19(burst_size_i),
-                                     .probe20(len));
+                                     .probe20(len),
+                                     .probe21(cobs_reset));
          end
      endgenerate
     
-    // tready generation. Does NOT happen in IDLE.
+    // tready generation. Does NOT happen in IDLE unless we have gar-bage to zip through.    
     // The state names describe what's currently on the TDATA busses.
+    wire idle_dump = (state == IDLE && axis_rx_tvalid && (axis_rx_tlast || axis_rx_tuser));
+    
     assign axis_rx_tready = (state == ADDR2 || state == ADDR1 || 
                              state == ADDR0 || state == READLEN ||
                              state == WRITE0 || state == WRITE1 || state == WRITE2 ||
-                             state == WRITE3);
+                             state == WRITE3 || idle_dump);
 
     // tvalid generation
     assign axis_tx_tvalid = (state == READDATA0 || state == READDATA1 || state == READDATA2 ||

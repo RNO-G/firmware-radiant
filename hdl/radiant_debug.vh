@@ -18,7 +18,7 @@
     // ILA to view the CalRam process (for channel 0)
  `define WB_CALRAM_DEBUG "TRUE"
     // ILA to view the board manager interface (UART)
- `define BOARDMAN_INTERFACE_DEBUG "FALSE"
+ `define BOARDMAN_INTERFACE_DEBUG "TRUE"
     // ILA to view the phase scanner
  `define PHASE_SCANNER_DEBUG "TRUE"
     // ILA for the RADIANT's trigger top
