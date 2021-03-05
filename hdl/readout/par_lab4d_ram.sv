@@ -41,6 +41,7 @@ module par_lab4d_ram #(
 		output [NUM_LAB4*LAB4_BITS-1:0] lab_dat_o,
 		output [NUM_LAB4-1:0] lab_wr_o,
 		output [6:0] lab_sample_o,
+		output [NUM_LAB4-1:0] lab_stop_o,
 		
 		output complete_o,
 		output [31:0] readout_debug_o,
@@ -204,6 +205,8 @@ module par_lab4d_ram #(
                 assign data_out[i] = {data_output[15:0],data_output[31:16]};
                 assign lab_dat_o[L4_BITS*i +: L4_BITS] = data_in_reg[0 +: L4_BITS];
                 assign lab_wr_o[i] = data_wr_reg;
+                // The trigger bit is the END.
+                assign lab_stop_o[i] = readout_header_i[1];                
             end else begin : SHAD
                 // We want to shadow things to keep the decode easy, so what we do is just shift
                 // DATA_OUT_SIZE down by 1 and use that as a modulo. We don't just do modulo NUM_LAB4,
