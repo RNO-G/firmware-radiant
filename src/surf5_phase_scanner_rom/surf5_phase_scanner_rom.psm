@@ -192,6 +192,7 @@ find_edge_lp1:
 find_edge_jp1:	
         load    s4, 00
         load    s5, 00
+find_edge_lp2:
         call  	step_increment
 		call	latch
 		input	s2,	(s0)
@@ -200,7 +201,7 @@ find_edge_jp1:
 ; We found our target, increment s3
      	add     s3,	01
 		compare	s3,	04
-		jump	NZ,	find_edge_jp1
+		jump	NZ,	find_edge_lp2
 ; Passed the stable tap threshold. Back up 3 steps (to where the edge was).
 		load	s0,	step_0
 		load	s1,	step_1
@@ -212,7 +213,7 @@ find_edge_jp2:
         load	s3,	00		
 		add     s4, 01
 		addcy   s5, 00
-		jump    NC, find_edge_jp1
+		jump    NC, find_edge_lp2
 ; Total failure (we've been searching for 65536 steps!). Set result to 0xFFFF
 failreturn:
 		load    s0, FF
