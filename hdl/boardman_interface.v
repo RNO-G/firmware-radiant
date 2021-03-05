@@ -328,7 +328,10 @@ module boardman_interface(
     reg [1:0] null_counter = {2{1'b0}};
     reg cobs_reset = 0;
     always @(posedge clk) begin
-        if (cobs_rx_tready && cobs_rx_tvalid && cobs_rx_tdata == 8'h00) null_counter[1:0] <= null_counter[1:0] + 1;
+        if (cobs_rx_tready && cobs_rx_tvalid) begin
+            if (cobs_rx_tdata == 8'h00) null_counter[1:0] <= null_counter[1:0] + 1;
+            else null_counter <= {2{1'b0}};
+        end
         if (cobs_rx_tready && cobs_rx_tvalid && cobs_rx_tdata == 8'h00 && null_counter[1:0] == 2'b11) cobs_reset <= 1;
         else cobs_reset <= 0;
     end    
