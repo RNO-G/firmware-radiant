@@ -20,7 +20,9 @@
 // 0x0000: Device ID   ('RDNT')
 // 0x0004: Firmware ID (standard day/month/major/minor/revision packing)
 // 0x0008: CPLD control register.
-// 0x000C: unused
+// 0x000C: channel enable. Ensures that LAB4 specific outputs are never driven (by THIS fpga)
+//         I need to add a way to do this inside the CPLD as well, I guess, but for our *current*
+//         use case this is enough.
 // 0x0010: PPS selection register.
 // 0x0014: Reset/mode register
 // 0x0018: General control (pulser, LED, I guess)
@@ -71,7 +73,13 @@ module rad_id_ctrl(
         // static WR value when in reset (not actually needed!)
         output [`LAB4_WR_WIDTH-1:0] reset_wr_o,
 		// indicates that we're selecting an inverted MONTIMING
+		// not actually needed EITHER
 		output [1:0] invert_montiming_o,		
+
+        // Channel disable. For a specific LAB4
+        // this forces WCLK/SIN/PCLK all to tristate
+        // forcibly.
+        output [23:0] lab4_channel_disable_o,
 		
         // internal LED signal
         input [0:0] internal_led_i,
@@ -159,6 +167,10 @@ module rad_id_ctrl(
         assign invert_montiming_o[0] = (MONTIMING_POLARITY[ cpld_ctrl_reg[2:0] ]);
         assign invert_montiming_o[1] = (MONTIMING_POLARITY[ 12+cpld_ctrl_reg[CBIT_COUNT +: 3] ]);            
 
+        // Channel disable register.
+        reg [23:0] lab4_channel_disable = {24{1'b0}};
+        assign lab4_channel_disable_o = lab4_channel_disable;
+        
         // Reset/mode register
         // bit [0]     = MMCM (all internal clock) reset
         // bit [9:8]   = burst size
@@ -246,8 +258,8 @@ module rad_id_ctrl(
 		// Sleaze at first. Just make all the registers 32 bit.
 		`WISHBONE_ADDRESS( 16'h0000, DEVICE, OUTPUT, [31:0], 0);
 		`WISHBONE_ADDRESS( 16'h0004, VERSION, OUTPUT, [31:0], 0);
-		`WISHBONE_ADDRESS( 16'h0008, cpld_ctrl_reg, OUTPUTSELECT, sel_cpld_ctrl, 0);
-		`WISHBONE_ADDRESS( 16'h000C, {32{1'b0}}, OUTPUT, [31:0], 0);
+		`WISHBONE_ADDRESS( 16'h0008, cpld_ctrl_reg, OUTPUTSELECT, sel_cpld_ctrl, 0);		
+		`WISHBONE_ADDRESS( 16'h000C, lab4_channel_disable, SIGNALRESET, [23:0], {24{1'b0}} );
 		`WISHBONE_ADDRESS( 16'h0010, pps_sel_reg, SIGNALRESET, [31:0], {32{1'b0}});
 		`WISHBONE_ADDRESS( 16'h0014, reset_reg, SIGNALRESET, [31:0], {32{1'b0}});
 		`WISHBONE_ADDRESS( 16'h0018, led_reg, OUTPUTSELECT, sel_led_reg, 0);
