@@ -11,6 +11,11 @@ module lab4d_shift_register (
         dbg_sin_o,
         dbg_sclk_o,
         dbg_pclk_o,
+        
+        lab4_user_request_i,
+        
+        lab4_channel_disable_i,
+        
         SIN,
         SCLK,
         PCLK);
@@ -24,10 +29,16 @@ module lab4d_shift_register (
     input [23:0] dat_i;
     input [NUM_SEL_BITS-1:0] sel_i;
     input [7:0] prescale_i;
+    
+    input lab4_user_request_i;
+    
     output busy_o;
     output dbg_sin_o;
     output dbg_sclk_o;
     output dbg_pclk_o;
+    
+    input [NUM_LABS-1:0] lab4_channel_disable_i;
+    
     output [NUM_LABS-1:0] SIN;
     output [NUM_SCLK-1:0] SCLK;
     output [NUM_LABS-1:0] PCLK;
@@ -102,6 +113,8 @@ module lab4d_shift_register (
 	generate
 		genvar i,j;
 		for (i=0;i<NUM_LABS;i=i+1) begin : LABS
+		    wire pclk_to_iob;
+		    wire sin_to_iob;		
 			assign lab_is_selected[i] = (sel_i == i) || &sel_i;
 
             always @(posedge clk_i) begin : DBG
@@ -112,9 +125,11 @@ module lab4d_shift_register (
                 else sin_copy[i] <= shift_reg[23];
             end						
 			(* IOB = "TRUE" *)
-			FDRE u_pclk(.D(pclk_reg),.C(clk_i),.R(!lab_is_selected[i]),.CE(1'b1),.Q(PCLK[i]));
+			FDRE u_pclk(.D(pclk_reg),.C(clk_i),.R(!lab_is_selected[i]),.CE(1'b1),.Q(pclk_to_iob));
+			OBUFT u_pclk_iobuf(.I(pclk_to_iob),.O(PCLK[i]),.T(lab4_channel_disable_i[i]));
 			(* IOB = "TRUE" *)
-			FDRE u_sin(.D(shift_reg[23]),.C(clk_i),.R(!lab_is_selected[i]),.CE(1'b1),.Q(SIN[i]));
+			FDRE u_sin(.D(shift_reg[23]),.C(clk_i),.R(!lab_is_selected[i]),.CE(1'b1),.Q(sin_to_iob));
+			OBUFT u_sin_iobuf(.I(sin_to_iob),.O(SIN[i]),.T(lab4_channel_disable_i[i]));
 		end
 		for (j=0;j<NUM_SCLK;j=j+1) begin : SCLKS
 		    always @(posedge clk_i) begin : DBG
@@ -125,7 +140,7 @@ module lab4d_shift_register (
 			FDRE u_sclk(.D(sclk_reg),.C(clk_i),.R((state==IDLE)),.CE(1'b1),.Q(SCLK[j]));
         end
         if (DEBUG == "TRUE") begin : ILA
-            lab4d_shift_register_ila u_ila(.clk(clk_i),.probe0(sin_copy),.probe1(pclk_copy),.probe2(sclk_copy),.probe3(go_i));
+            lab4d_shift_register_ila u_ila(.clk(clk_i),.probe0(sin_copy),.probe1(pclk_copy),.probe2(sclk_copy),.probe3(go_i),.probe4(lab4_user_request_i));
         end
 	endgenerate
 

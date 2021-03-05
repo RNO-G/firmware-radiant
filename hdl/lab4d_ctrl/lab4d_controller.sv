@@ -57,6 +57,8 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		
 		output [NUM_RAMP-1:0] ramp_in_o,
 		
+        input [NUM_LABS-1:0] lab4_channel_disable_i,		
+		
 		output [NUM_LABS-1:0] SIN,
 		output [NUM_SCLK-1:0] SCLK,
 		output [NUM_LABS-1:0] PCLK,
@@ -245,14 +247,18 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	reg trigger_reset = 0;
 	reg [1:0] trigger_repeat = {2{1'b0}};
 	reg trigger_repeat_wr = 0;
+	
+	// Upon a force trigger (readout), generate this many actual triggers (readouts), plus 1.
+	reg [7:0] force_trigger_count = {8{1'b0}};
+	reg [7:0] num_force_trigger = {8{1'b0}};
 	// trigger register:
 	// bit [07:00] = picoblaze stuff
-	// bits[15:08] = unused
+	// bits[15:08] = force trigger count (number of force triggers per write, minus 1). These are NOT one immediately after the other, they wait until readouts complete.
 	// bits[22:16] = post_trigger count
 	// bits[23]    = write post trigger count
 	// bits[30:24] = trigger repeat count
 	// bits[31]    = write trigger repeat count
-	assign trigger_register = {{6{1'b0}},trigger_repeat,{5{1'b0}},post_trigger,{8{1'b0}},trigger_empty,2'b00,trigger_address};
+	assign trigger_register = {{6{1'b0}},trigger_repeat,{5{1'b0}},post_trigger,force_trigger_count,trigger_empty,2'b00,trigger_address};
 
 
 	// Readout Register:
@@ -261,7 +267,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	// bit 2: readout reset
 	// bit 3: data available (any readout fifo is not empty)
 	// bit 4: readout data, not test pattern
-	// bit 5: unused
+	// bit 5: in a force trigger sequence
 	// bit 6: begin readout (from PicoBlaze only)
 	// bit 7: readout pending
 	// NOTE NOTE: This used to be 16+ were FIFO empty...
@@ -270,12 +276,14 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	// bits 8+: readout fifo empty
 	reg readout_pending = 0;	
 	reg readout_not_done = 0;
+	reg readout_not_done_reg = 0;
 	reg readout_data_not_test_pattern = 0;
 	reg readout_fifo_reset = 0;
 	reg readout_reset = 0;
 	reg in_a_readout = 0;
 	wire data_available = !(&readout_fifo_empty_i);
-	assign readout_register = {readout_fifo_empty_i,readout_pending,2'b00,readout_data_not_test_pattern,data_available,2'b00,readout_not_done};
+	reg force_triggering = 0;
+	assign readout_register = {readout_fifo_empty_i,readout_pending,1'b0,force_triggering,readout_data_not_test_pattern,data_available,2'b00,readout_not_done};
 	
 	reg [3:0] readout_header_clk = {4{1'b0}};
 	reg [3:0] readout_header_sysclk = {4{1'b0}};
@@ -378,6 +386,8 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	assign trigger_stop = (pb_port[4:0] == 20) && pb_write && pb_outport[1];
 	assign trigger_read = (pb_port[4:0] == 20) && pb_write && pb_outport[6];
 	
+	wire force_trigger_readout;
+	
 	always @(posedge clk_i) begin
 		if (ramp_done) ramp_pending <= 0;
 		else if (do_ramp) ramp_pending <= 1;
@@ -386,6 +396,8 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		else if (do_readout) readout_pending <= 1;
 
 		if (pb_port[4:0] == 22 && pb_write) readout_not_done <= pb_outport[0];
+		
+		readout_not_done_reg <= readout_not_done;
 		
 		if (wb_cyc_i && wb_stb_i && wb_we_i && wb_adr_i[6:0] == 7'h58) begin
 			readout_data_not_test_pattern <= wb_dat_i[4];
@@ -467,23 +479,50 @@ module lab4d_controller #(parameter NUM_LABS=24,
 			trigger_reset <= 0;
 		end
 
+        // Trigger register. Basically split up into bytes
+        // [7:0] control. bit[0] = clear (unused), bit[1] = force trigger
+        // [15:8] (unused)
+        // [23:16] post-trigger count. Set bit 23 to actually update post-trigger count, bits[18:16] contain count.
+        // [31:24] repeat count. Set bit 31 to actually update repeat count, bits[25:24] contain repeat count.
+        //         Trigger repeat is at the *trigger* level - as in, it allows you to get multiple 1024-sample
+        //         readouts per trigger.
 		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h54)) begin
-			trigger_clear <= wb_dat_i[0];
-			force_trigger <= wb_dat_i[1];
-			if (wb_dat_i[23]) begin 
-				post_trigger_wr <= 1;
-				post_trigger <= wb_dat_i[18:16];
-			end
-			if (wb_dat_i[31]) begin
-				trigger_repeat_wr <= 1;
-				trigger_repeat <= wb_dat_i[25:24];
-			end
+		    if (wb_sel_i[0]) begin
+                trigger_clear <= wb_dat_i[0];
+                force_trigger <= wb_dat_i[1];
+            end
+            
+            if (wb_sel_i[1]) begin
+                force_trigger_count <= wb_dat_i[15:8];
+            end
+                            
+            if (wb_sel_i[2]) begin
+                if (wb_dat_i[23]) begin 
+				    post_trigger_wr <= 1;
+				    post_trigger <= wb_dat_i[18:16];
+			    end
+            end
+            
+            if (wb_sel_i[3]) begin
+			    if (wb_dat_i[31]) begin
+				    trigger_repeat_wr <= 1;
+				    trigger_repeat <= wb_dat_i[25:24];
+			     end
+            end
 		end else begin
 			trigger_clear <= 0;
 			force_trigger <= 0;
 			post_trigger_wr <= 0;
 			trigger_repeat_wr <= 0;
 		end
+
+        // Force trigger starts the sequence.
+        if (force_trigger) force_triggering <= 1;
+        else if (force_trigger_count == num_force_trigger) force_triggering <= 0;
+        
+        // Trigger counts increment at falling edges.
+        if (!force_triggering || force_trigger) num_force_trigger <= {8{1'b0}};
+        else if (!readout_not_done && readout_not_done_reg) num_force_trigger <= num_force_trigger + 1;
 
 		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h7C)) begin
 			processor_reset <= wb_dat_i[31];
@@ -499,6 +538,10 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	always @(posedge sys_clk_i) begin
 		if (readout_header_write_sysclk) readout_header_sysclk <= readout_header_clk;
 	end
+	
+	// Flag a readout whenever force_trigger occurs, OR a readout completes AND we're still triggering
+	assign force_trigger_readout = (force_trigger || (force_triggering && !readout_not_done && readout_not_done_reg));
+	
 
 	lab4d_shift_register #(.NUM_LABS(NUM_LABS),.NUM_SCLK(NUM_SCLK)) u_shift_reg(.clk_i(clk_i),
 												.go_i(lab4_serial_go),
@@ -506,6 +549,10 @@ module lab4d_controller #(parameter NUM_LABS=24,
 												.sel_i(lab4_serial_select),
 												.prescale_i(shift_prescale),
 												.busy_o(lab4_serial_busy),
+												.lab4_channel_disable_i(lab4_channel_disable_i),
+												// this is JUST for timing purposes!!
+												.lab4_user_request_i(lab4_user_write_request),
+												
 												.SIN(SIN),
 												.SCLK(SCLK),
 												.PCLK(PCLK));
@@ -519,7 +566,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 											  .ready_o(lab4_running),
 											  .current_bank_o(cur_bank),
 											  .trigger_i(trig_i),
-											  .force_trigger_i(force_trigger),
+											  .force_trigger_i(force_trigger_readout),
 											  
 											  .rst_i(trigger_reset),
 											  .post_trigger_i(post_trigger),
