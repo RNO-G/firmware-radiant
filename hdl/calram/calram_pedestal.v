@@ -60,8 +60,22 @@
 // AMAZING SLEAZE!
 //
 // Resetting the DSPs can be done by writing to the magic write address of 31 (which selects all of them).
-// for all 4096 values. Yes, tedious, but simplest/least resource intensive method.
+// for all 4096 values. This is stupid, however, because you can also just use the zeroing input and
+// run a trigger.
 //
+// NOTE NOTE NOTE NOTE NOTE:
+// The "seam" sample (127->128, and every 128 after) is much harder to do for zero crossings! This is because
+// we can't do the *first* one (sample 0) because we don't have the "last" sample (1023), and *one* of the seams
+// (depends on when the trigger came) won't be valid, because it's actually end-of-record compared to beginning
+// of record.
+//
+// So how do we work around this? We only do *three* of the seams.
+// We will *always* be able to do a seam by sample 256. So for sample 256, we either use the seam at 128,
+// or *if* the seam at 128 is fake (because it's the 'stop' window) we use the seam at 256.
+// This is awkward because we need to store the result for 128 most of the time. Thankfully for zero-crossing
+// this isn't *that* hard: we multiplex zc_positive and dspA_out[47] based on whether it was viable or not.
+//
+// repeat for 512/768 (obviously 0 doesn't work). So we get 3/8s of the statistics.
 module calram_pedestal  #(parameter LAB4_BITS=12,
                           parameter DEBUG = "FALSE")
                          ( input                 sys_clk_i,
@@ -69,6 +83,7 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
                            input [LAB4_BITS-1:0] lab_dat_i,
                            input                 lab_wr_i,
                            input [11:0]          lab_adr_i,
+                           input                 lab_stop_i,
                            // Inputs from control.
                            input                 en_i,
                            input                 config_wr_i,
@@ -111,11 +126,13 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
     
     reg       zc_full = 0;
     wire      dspB_match;
+        
     // This is just impressively dumb, there's got to be a simpler way to do this.
     // Tried to do it by screwing with the DSP, but can't see a way to do it
     // easily because the OPMODE/CARRYINSEL clock enables are common.
     // Maybe if I killed OPMODE's register and just special-timed it against
     // ped_mode. Not sure.
+    wire write_zero_cross;
     always @(posedge sys_clk_i) begin
         // store ped mode or not
         if (config_wr_i) ped_mode <= !zc_mode_i;
@@ -125,7 +142,7 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
         // dspA becomes valid at bram_en_delay[3]
         bram_hwr <= bram_en_delay[2] && ped_mode;
         // dspB is valid right after, but we only count if positive OR if we're zeroing. 
-        bram_lwr <= bram_en_delay[3] && (ped_mode || zc_positive || zero_i);
+        bram_lwr <= bram_en_delay[3] && (ped_mode || write_zero_cross || zero_i);
         
         if (config_wr_i) zc_full <= 0;
         else if (dspB_match && bram_lwr) zc_full <= 1;
@@ -156,13 +173,41 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
     wire bramif_wr = (state == WRITE_ACK);
     wire bramif_regce = (state == READ_1);
     
+    reg this_is_a_seam = 0;
+    reg this_is_last_sample = 0;
+    reg seam_previous_zc_positive = 0;
+    reg seam_previous_negative = 0;
+    reg seam_previous_valid = 0;    
+        
     wire [47:0] dspA_out;    
     assign zc_positive = dspA_out[47];
+    assign write_zero_cross = (this_is_a_seam && seam_previous_valid) ? seam_previous_zc_positive : zc_positive;
     wire [3:0]  dspA_carryout;
     wire [47:0] dspB_out;
     wire [47:0] dspA_cascP_dspB;
     wire [29:0] dspA_cascA_dspB;
     wire        dspA_carrycasc_dspB;
+
+    // Seam zero-crossing hack. This occurs at 256, 512, and 768.
+    // It also occurs at zero but that's nonsense, so that one's ignored.
+    // What we do here is capture the result of the operation at 128, 384, and 640,
+    // and whether or not it's valid. If it *is* valid (which it will be most of the time)
+    // we use *that* seam to update the zero-crossing calculation in the *second* block.
+    // Otherwise we use the *current* seam.
+    //
+    always @(posedge sys_clk_i) begin
+        // Seam updates *only* happen at 256/512/768 (and 0, but that's discarded)
+        if (lab_wr_i) this_is_a_seam <= (lab_adr_i[7:0] == 0);            
+        // At 255/511/767, we also have to feed in the result from the sample *prior* to the seam.
+        if (lab_wr_i) this_is_last_sample <= (lab_adr_i[7:0] == 255);
+        
+         // Determine if the *early* seam (128,384,640) was valid.
+        if (lab_adr_i[7:0] == 127 && lab_wr_i) seam_previous_valid <= ~lab_stop_i;
+        // Capture if the early seam (128, 384, 640) was *previously* negative! Note that 127 here!
+        if (lab_adr_i[7:0] == 127 && dspA_valid) seam_previous_negative <= ~dspA_out[47];
+        // Capture if the early seam (128, 384, 640) is *currently* negative.
+        if (lab_adr_i[7:0] == 128 && dspA_valid) seam_previous_zc_positive <= zc_positive;
+    end
     
     // all of these are captured at config_wr_i, which goes
     // to:
@@ -184,7 +229,7 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
     wire [2:0] dspB_carryinsel = 3'b000;                                                       // always CARRYIN (never used)
 
     wire [17:0] dspB_b = 18'd1;
-    wire [47:0] dspB_c = { {46{1'b0}}, ~dspA_out[47] };
+    wire [47:0] dspB_c = (this_is_last_sample && seam_previous_valid) ? {{46{1'b0}}, seam_previous_negative} : { {46{1'b0}}, ~dspA_out[47] };
     
     wire [8:0] bram_outA[2:0];
     wire [2:0] bram_wea = { bram_hwr, bram_hwr, bram_lwr };
@@ -271,7 +316,12 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
                                    .probe4(bram_inA[1]),
                                    .probe5(bram_inA[2]),
                                    .probe6(bram_wea),
-                                   .probe7(en_i));
+                                   .probe7(en_i),
+                                   .probe8(this_is_a_seam),
+                                   .probe9(this_is_last_sample),
+                                   .probe10(seam_previous_valid),
+                                   .probe11(seam_previous_negative),
+                                   .probe12(seam_previous_zc_positive));
        end
    endgenerate
     

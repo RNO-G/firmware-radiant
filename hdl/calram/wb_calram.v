@@ -36,7 +36,8 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
                   
                   input sys_clk_i,
                   input [NUM_LABS*LAB4_BITS-1:0] lab_dat_i,
-                  input [NUM_LABS-1:0] lab_wr_i                  
+                  input [NUM_LABS-1:0] lab_wr_i,
+                  input [NUM_LABS-1:0] lab_stop_i
     );
 
     wire [NUM_LABS-1:0] rollover;
@@ -189,6 +190,7 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
                                   .lab_dat_i(lab_dat_i[LAB4_BITS*i +: LAB4_BITS]),
                                   .lab_wr_i(lab_wr_i[i]),
                                   .lab_adr_i(lab_addr[i]),
+                                  .lab_stop_i(lab_stop_i[i]),
                                   .en_i(en_sysclk[i]),
                                   .config_wr_i(config_wr_sysclk),
                                   .zc_mode_i(zc_mode),
