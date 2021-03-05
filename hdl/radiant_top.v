@@ -75,7 +75,7 @@ module radiant_top( input SYS_CLK_P,
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
     parameter [3:0] VER_MINOR = 2;
-    parameter [7:0] VER_REV = 3;
+    parameter [7:0] VER_REV = 5;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
@@ -182,6 +182,9 @@ module radiant_top( input SYS_CLK_P,
     wire [1:0] invert_montiming;
     wire spiclk;
     wire [1:0] rampdone_in;
+    
+    wire [23:0] lab4_channel_disable;
+    
     rad_id_ctrl #(.DEVICE(IDENT),.VERSION(DATEVERSION),.MONTIMING_POLARITY(CPLD_MT_POLARITY)) u_id(.clk_i(CLK50),.rst_i(1'b0),
                      `WBS_CONNECT( rad_id_ctrl, wb ),
                      .sys_clk_in(sysclk_in),
@@ -194,6 +197,8 @@ module radiant_top( input SYS_CLK_P,
                      .spiclk_o(spiclk),
                      .reset_wr_o(reset_wr),
                      .invert_montiming_o(invert_montiming),
+                     
+                     .lab4_channel_disable_o(lab4_channel_disable),                     
                      
                      .sys_clk_div8_ps_o(sysclk_div8_ps),
                      .ps_clk_i(ps_clk),
@@ -285,6 +290,9 @@ module radiant_top( input SYS_CLK_P,
                                    .montiming_i(montiming_reg),
                                    .ramp_in_o(rampdone_in),
                                    // END MAKE THESE REAL
+                                   
+                                   .lab4_channel_disable_i(lab4_channel_disable),
+                                   
                                    .SIN(SIN),
                                    .SCLK(sclk),
                                    .PCLK(PCLK),
@@ -297,7 +305,8 @@ module radiant_top( input SYS_CLK_P,
 
     // sysclk domain
     wire [24*12-1:0] lab_dat;
-    wire [23:0] lab_wr;                                   
+    wire [23:0] lab_wr;      
+    wire [23:0] lab_stop;                             
                                    
     par_lab4d_ram #(.NUM_SS_INCR(2),.NUM_SRCLK(2),.SRCLK_POLARITY(SRCLK_POLARITY),.NUM_LAB4(24),.DOE_POLARITY(DOE_POLARITY),.SRCLK_DIFFERENTIAL("FALSE"))
             u_l4ram(.clk_i(CLK50),
@@ -320,6 +329,7 @@ module radiant_top( input SYS_CLK_P,
                     
                     .lab_dat_o(lab_dat),
                     .lab_wr_o(lab_wr),
+                    .lab_stop_o(lab_stop),
                     
                     .DOE_LVDS_P(DOE_P),
                     .DOE_LVDS_N(DOE_N),
@@ -334,7 +344,8 @@ module radiant_top( input SYS_CLK_P,
                        `WBS_CONNECT(calram, wb),
                        .sys_clk_i(sysclk),
                        .lab_dat_i(lab_dat),
-                       .lab_wr_i(lab_wr));
+                       .lab_wr_i(lab_wr),
+                       .lab_stop_i(lab_stop));
                                                                                   
     radiant_trig_top #(.TRIG_POLARITY(TRIG_POLARITY)) u_trig(.clk_i(CLK50),.rst_i(1'b0),
                                                              `WBS_CONNECT(trig, wb),
