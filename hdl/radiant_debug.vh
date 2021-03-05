@@ -4,7 +4,7 @@
     // There's a lot of debugging options in the firmware, enough that it makes a big resource hog to turn them all on.
     
     // ILA to view the LAB4D control shift register inputs/outputs
- `define LAB4D_SHIFT_REGISTER_DEBUG "FALSE"
+ `define LAB4D_SHIFT_REGISTER_DEBUG "TRUE"
     // ILA to view the LAB4D data shift register input/outputs
  `define LAB4D_DATA_REGISTER_DEBUG "FALSE"
     // ILA to view the data coming into/out of the LAB4D RAM (plus a VIO to select which one)
