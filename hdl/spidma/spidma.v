@@ -129,9 +129,10 @@ module spidma( input wb_clk_i,
     
     reg [11:0] transaction_counter = {12{1'b0}};
     
+    // Cycle delay is in units of 16 clocks.
     reg [6:0] cycle_delay = {7{1'b0}};
-    reg [6:0] cycle_count = {7{1'b0}};
-    wire cycle_delay_reached = cycle_delay == cycle_count;
+    reg [10:0] cycle_count = {11{1'b0}};
+    wire cycle_delay_reached = ({cycle_delay,4'h0} == cycle_count);
             
     wire [31:0] cur_descriptor;
     wire [17:0] descriptor_addr = cur_descriptor[0 +: 18];
@@ -319,8 +320,8 @@ module spidma( input wb_clk_i,
         end
 
         // Super, super simple.
-        if (state != DECODE) cycle_delay <= {7{1'b0}};
-        else if (state == DECODE) cycle_delay <= cycle_delay + 1;
+        if (state != DECODE) cycle_count <= {11{1'b0}};
+        else if (state == DECODE) cycle_count <= cycle_count + 1;
     
         // Our controllable bits are:
         // dma_direction
