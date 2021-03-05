@@ -90,6 +90,11 @@ get_value_command_jp:
 		jump	main
 ; Measure the total width of a particular input.
 ; Argument's low 4 bits determine which input.
+; This command doesn't have any possibility of
+; running forever: it totally sleazes the width
+; by just literally adding up all the 1s in the
+; clock period. scan_edge is the only one with
+; a failure possibility.
 full_width_measure_command_jp:
 		input	s3,	argument_0
 		and	s3,	0F
@@ -155,26 +160,45 @@ latch_lp1:	input	s8,	status_port
 ; Register outputs: s0, s1.
 ; (s1,s0) contains the edge found.
 ; Registers used: s0,s1,s2,s3,s8
+;
+; NOTE: Originally this would run
+; FOREVER looking for it, which Would Be Bad.
+; So we need a Bail Out function. I need to
+; look at the "measure width" function, too,
+; to see if it has a similar issue (it almost
+; certainly does).
+;
+; s4/s5 are open here. We'll use those for our
+; bail out. We need TWO!! checks here, because
+; we search for TWO!! things.
 find_edge:
+        load    s4, 00
+        load    s5, 00
 		add	s0,	mon_base
 		load	s3,	00
 find_edge_lp1:
 		call	latch
 		input	s2,	(s0)
 ; First find the opposite value from the desired target.
-  	     	compare	s2,	s1
+  	    compare	s2,	s1
 		jump	NZ,	find_edge_jp1
+		add     s4, 01
+		addcy   s5, 00
+		jump    C,  failreturn
 		call	step_increment
 		jump	find_edge_lp1
 ; The input is now the opposite of what we want.
 ; Now we search for 4 stable steps of our desired target.
-find_edge_jp1:	call  	step_increment
+find_edge_jp1:	
+        load    s4, 00
+        load    s5, 00
+        call  	step_increment
 		call	latch
 		input	s2,	(s0)
 		compare	s2,	s1
 		jump	NZ,	find_edge_jp2
 ; We found our target, increment s3
-     	        add     s3,	01
+     	add     s3,	01
 		compare	s3,	04
 		jump	NZ,	find_edge_jp1
 ; Passed the stable tap threshold. Back up 3 steps (to where the edge was).
@@ -184,8 +208,16 @@ find_edge_jp1:	call  	step_increment
 		subcy	s1,	00
 		return
 ; No target. Reset s3 (step counter) and continue.
-find_edge_jp2:	load	s3,	00		
-		jump	find_edge_jp1
+find_edge_jp2:	
+        load	s3,	00		
+		add     s4, 01
+		addcy   s5, 00
+		jump    NC, find_edge_jp1
+; Total failure (we've been searching for 65536 steps!). Set result to 0xFFFF
+failreturn:
+		load    s0, FF
+		load    s1, FF
+		return
 				
 ; go_to_step: Goes to a phase step specified.
 ; Register inputs: (s1,s0) specify the destination step.
