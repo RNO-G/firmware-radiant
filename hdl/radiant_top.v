@@ -75,7 +75,7 @@ module radiant_top( input SYS_CLK_P,
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
     parameter [3:0] VER_MINOR = 2;
-    parameter [7:0] VER_REV = 5;
+    parameter [7:0] VER_REV = 7;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
@@ -357,7 +357,7 @@ module radiant_top( input SYS_CLK_P,
     reg [24:0] counter = {25{1'b0}};
     reg [1:0]  pulse_catch = {2{1'b0}};
     reg        pulse_enable = 0;
-    // just... do it every 64 for now. We need to make this controllable
+    // just... do it every 16 for now. We need to make this controllable
     // via a register and use a freakin DSP
     always @(posedge sysclk) begin
         counter <= counter[23:0] + 1;
@@ -366,7 +366,7 @@ module radiant_top( input SYS_CLK_P,
         // counter[2] would be every 8
         // counter[3] would be every 16
         // counter[4] would be every 32
-        pulse_catch <= {pulse_catch[0],counter[5]};
+        pulse_catch <= {pulse_catch[0],counter[3]};
         pulse_enable <= pulse_catch[0] && !pulse_catch[1];
     end
 
