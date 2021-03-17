@@ -140,7 +140,7 @@ module lab4d_shift_register (
 			FDRE u_sclk(.D(sclk_reg),.C(clk_i),.R((state==IDLE)),.CE(1'b1),.Q(SCLK[j]));
         end
         if (DEBUG == "TRUE") begin : ILA
-            lab4d_shift_register_ila u_ila(.clk(clk_i),.probe0(sin_copy),.probe1(pclk_copy),.probe2(sclk_copy),.probe3(go_i),.probe4(lab4_user_request_i));
+            lab4d_shift_register_ila u_ila(.clk(clk_i),.probe0(sin_copy),.probe1(pclk_copy),.probe2(sclk_copy),.probe3(go_i),.probe4(lab4_user_request_i),.probe5(dat_i));
         end
 	endgenerate
 
