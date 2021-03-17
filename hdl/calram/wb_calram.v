@@ -68,6 +68,7 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
 
     reg zc_mode = 0;
     reg zero_mode = 0;
+    reg zc_read_mode = 0;
     // stop Vivado from whining
     (* ASYNC_REG = "TRUE" *)
     reg [1:0] zero_mode_sysclk = {2{1'b0}};
@@ -98,14 +99,12 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
                        .tcount_reached_o(),
                        .count_o(roll_count));
 
-    wire [31:0] en_reg = { {29{1'b0}}, roll_complete_clk[1], zc_full_clk, 1'b0, en_clk };
-    wire [31:0] mode_reg = { {31{1'b0}}, zc_mode };
+    wire [31:0] en_reg = { {28{1'b0}}, roll_complete_clk[1], zc_full_clk, 1'b0, en_clk };
+    wire [31:0] mode_reg = { {29{1'b0}}, zc_read_mode, zero_mode, zc_mode };
     wire [31:0] count_reg = roll_count[31:0];
     wire [31:0] control_mux[3:0];
     
     reg control_ack = 0;
-
-    reg zc_read_mode = 0;
 
     assign control_mux[0] = en_reg;
     assign control_mux[1] = mode_reg;
@@ -170,7 +169,7 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
     generate
         genvar i;
         for (i=0;i<NUM_LABS;i=i+1) begin : LL
-            localparam DEBUG = (i == 0) ? "TRUE" : "FALSE";
+            localparam DEBUG = (i == 6 || i==0) ? "TRUE" : "FALSE";
             reg rollover_reg = 0;
             assign calram_rollover[i] = rollover_reg;
             wire max_reached;
