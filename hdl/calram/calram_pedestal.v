@@ -108,7 +108,8 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
                            output                ack_o,
                            input [11:0]          adr_i,
                            input  [26:0]         dat_i,
-                           output [26:0]         dat_o );
+                           output [26:0]         dat_o
+                            );
 
     // The pedestal calram takes in the data as they come in, fetches the address from RAM,
     // increments it, and writes it back in.
