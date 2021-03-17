@@ -19,7 +19,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
                           parameter NUM_RAMP=2,                          
                           parameter NUM_SHOUT=2,
                           parameter NUM_WR=4,
-                          parameter WR_DELAY=2,
+                          parameter WR_DELAY=3,
                           parameter [NUM_LABS-1:0] WCLK_POLARITY={NUM_LABS{1'b0}})(
 		input clk_i,
 		input rst_i,
