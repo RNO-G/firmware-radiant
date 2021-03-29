@@ -251,6 +251,6 @@ module par_lab4d_data_shift_register #( parameter NUM_LAB4 = 12,
 	assign srclk_o = dbg_srclk;
 	assign ss_incr_o = dbg_ss_incr;
 	assign dat_wr_o = dat_wr;
-	assign done_o = (state == DONE);
+	assign done_o = (state == DONE && ce);
 	assign sample_debug = {16{1'b0}};
 endmodule
