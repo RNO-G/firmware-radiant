@@ -20,7 +20,7 @@
 // you can run bursts of events and then check the ZC full indicator periodically.
 //
 // addr 0: bit 0: enable
-//         bit 1: unused
+//         bit 1: reset the roll counter
 //         bit 2: ZC full
 //         bit 3: roll complete (set when a roll completes, cleared by any other write)
 // addr 1: bit 0: ZC mode (if 0, pedestal mode). MUST WRITE THIS REGISTER FIRST, either 0 or 1!
@@ -113,6 +113,7 @@ module wb_calram_v2 #(parameter NUM_LABS=24,
     reg [1:0] roll_complete_clk = {2{1'b0}};
     
 
+    reg reset_counter = 0;
     wire [47:0] roll_count;
     dsp_counter_terminal_count #(.FIXED_TCOUNT("TRUE"),.FIXED_TCOUNT_VALUE(32'hFFFFFFFF),.HALT_AT_TCOUNT("TRUE"))
         u_roll_counter(.clk_i(clk_i),
@@ -160,6 +161,9 @@ module wb_calram_v2 #(parameter NUM_LABS=24,
     
         wr_reg <= wr;        
         if (chunk_addr == 24 && local_addr == 0 && wr) en_clk <= wb_dat_i[0];
+
+        if (chunk_addr == 24 && local_addr == 0 && wr) reset_counter <= wb_dat_i[1];
+        else reset_counter <= 0;
 
         // Mode register stuff. This MUST be written EVERY TIME when register 0 is written too.
         if (chunk_addr == 24 && local_addr == 1 && wr) adjust_clk <= wb_dat_i[3];
@@ -220,7 +224,7 @@ module wb_calram_v2 #(parameter NUM_LABS=24,
                 if (rollover_reg) rollover_reg <= 0;
                 else rollover_reg <= max_reached && calram_done[i];                
                 
-                if (lab_wr_i[i]) max_reached <= (lab_sample_i == {LAB4_SAMPLE_BITS{1'b1}});
+                if (lab_wr_i[i]) max_reached <= (lab_sample_i[LAB4_SAMPLE_BITS*i +: LAB4_SAMPLE_BITS] == {LAB4_SAMPLE_BITS{1'b1}});
                 if (lab_wr_i[i]) lab_header <= lab_header_i[HEADER_BITS*i +: HEADER_BITS];
             end
             // We don't use our own counter anymore.
