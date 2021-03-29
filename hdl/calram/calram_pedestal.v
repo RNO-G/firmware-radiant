@@ -76,6 +76,20 @@
 // this isn't *that* hard: we multiplex zc_positive and dspA_out[47] based on whether it was viable or not.
 //
 // repeat for 512/768 (obviously 0 doesn't work). So we get 3/8s of the statistics.
+//
+// MORE MAGIC SHIT:
+// Note DSP-A's inputs: they're
+// A = low BRAM bits (from 0-511)
+// D = dat_i input
+// C = high BRAM bits
+// The total pedestal spread is *less than* 512. So there's no reason we can't *also* use DSP-A as a
+// "pedestal adjust" to trim the events *on chip*, and then feed the *output* of this module
+// into the event FIFO, rather than having it go there itself.
+//
+// If we do that, then we need to swap DSP-A to (A+D) only, which is what it *already is* in pedestal
+// mode. So, in fact, all we need to do is kill the C input (which we can do through RSTC) and kill
+// all the BRAM activity (which we can do by not having enable be high!). We can *double use* RSTC
+// by making RSTC be !en_i and having the low BRAM reset output be an additional "adjust_i" input.
 module calram_pedestal  #(parameter LAB4_BITS=12,
                           parameter DEBUG = "FALSE")
                          ( input                 sys_clk_i,
@@ -84,10 +98,21 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
                            input                 lab_wr_i,
                            input [11:0]          lab_adr_i,
                            input                 lab_stop_i,
+                           // Outputs to the event FIFO. Either directly from the LABs or pedestal adjusted.
+                           output [11:0]         lab_dat_o,
+                           output                lab_wr_o,
                            // Inputs from control.
+                           // Enable calibration RAM stuff activity (rather than passthrough).
                            input                 en_i,
+                           // Enable pedestal adjustment.
+                           input                 adjust_i,
+                           // Subtract for ped adjustment instead of adding (probably should be default)
+                           input                 adj_neg_i,
+                           // Update the configuration of this module.
                            input                 config_wr_i,
+                           // Select zero crossing mode for calibration RAM.
                            input                 zc_mode_i,
+                           // Indicate that zero crossing mode is full.
                            output                zc_full_o,
                            // This becomes the RSTP input on the DSPs.
                            // If you set this and run a full 4096 in pedestal mode, all 3 BRAMs zero automatically.
@@ -128,6 +153,8 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
     reg       zc_full = 0;
     wire      dspB_match;
         
+    reg       adjust = 0;        
+        
     // This is just impressively dumb, there's got to be a simpler way to do this.
     // Tried to do it by screwing with the DSP, but can't see a way to do it
     // easily because the OPMODE/CARRYINSEL clock enables are common.
@@ -135,15 +162,18 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
     // ped_mode. Not sure.
     wire write_zero_cross;
     always @(posedge sys_clk_i) begin
+        // store adjust mode or not
+        if (config_wr_i) adjust <= adjust_i;
+        
         // store ped mode or not
         if (config_wr_i) ped_mode <= !zc_mode_i;
 
         // OK, we need to sequence things to capture the pipeline delays.
-        bram_en_delay <= { bram_en_delay[3:0], lab_wr_i && en_i };        
+        bram_en_delay <= { bram_en_delay[3:0], lab_wr_i };        
         // dspA becomes valid at bram_en_delay[3]
-        bram_hwr <= bram_en_delay[2] && ped_mode;
+        bram_hwr <= bram_en_delay[2] && ped_mode && en_i;
         // dspB is valid right after, but we only count if positive OR if we're zeroing. 
-        bram_lwr <= bram_en_delay[3] && (ped_mode || write_zero_cross || zero_i);
+        bram_lwr <= bram_en_delay[3] && (ped_mode || write_zero_cross || zero_i) && en_i;
         
         if (config_wr_i) zc_full <= 0;
         else if (dspB_match && bram_lwr) zc_full <= 1;
@@ -214,8 +244,13 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
     // to:
     // dspA: CECTRL (opmode/carryinsel)
     // dspB: CECTRL/CEALUMODE/CEINMODE
+
+    // DSPA inmode is either:
+    // zc_mode = 0: 00100 = D+A2
+    // zc_mode = 1: 00110 = D
+    // zc_mode = 0, adj_neg_i = 1: 01100 = D-A2
     
-    wire [4:0] dspA_inmode = { 2'b00, 1'b1, zc_mode_i, 1'b0 };
+    wire [4:0] dspA_inmode = { 1'b0, adj_neg_i, 1'b1, zc_mode_i, 1'b0 };
     wire [6:0] dspA_opmode = 7'b0110101;
     wire [3:0] dspA_alumode = { 2'b00, zc_mode_i, zc_mode_i };
     wire [2:0] dspA_carryinsel = 3'b000;
@@ -240,16 +275,20 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
     assign bram_inA[1] = dspA_out[9 +: 9];
     assign bram_inA[2] = dspA_out[18 +: 9];
     
+    // Only the low BRAM enables in adjust mode.
+    wire [2:0] adjust_en = {1'b0, 1'b0, adjust};
+    // Only read the ZC BRAM in ZC read mode.
     wire [2:0] bram_rstb = { zc_read_i, zc_read_i, 1'b0 };
-    
+    // Force the BRAM adjustments to 0 in non-adjust mode
+    wire [2:0] bram_rsta = { 1'b0, 1'b0, !adjust && !en_i };
     // OK, so here are our 3 BRAMs.
     generate
         genvar i;
         for (i=0;i<3;i=i+1) begin : BRAM
             BRAM_TDP_MACRO #(.DOA_REG(1), .BRAM_SIZE("36Kb"),.READ_WIDTH_A(9),.WRITE_WIDTH_A(9),.WRITE_MODE_A("WRITE_FIRST"),
                              .DOB_REG(1), .READ_WIDTH_B(9),.WRITE_WIDTH_B(9),.WRITE_MODE_B("WRITE_FIRST"))
-                        bram( .RSTA(1'b0),.RSTB(bram_rstb[i]),
-                              .DIA(bram_inA[i]),.ADDRA(lab_adr_i[11:0]),.WEA(bram_wea[i]),.ENA(en_i),.DOA(bram_outA[i]),.REGCEA(en_i),.CLKA(sys_clk_i),
+                        bram( .RSTA(bram_rsta[i]),.RSTB(bram_rstb[i]),
+                              .DIA(bram_inA[i]),.ADDRA(lab_adr_i[11:0]),.WEA(bram_wea[i]),.ENA(en_i || adjust_en[i]),.DOA(bram_outA[i]),.REGCEA(en_i || adjust_en[i]),.CLKA(sys_clk_i),
                               .DIB(dat_i[9*i +: 9]),.ADDRB(adr_i[11:0]),.WEB(bramif_wr),.ENB(bramif_en),.REGCEB(bramif_regce),.DOB(dat_o[9*i +: 9]),.CLKB(clk_i));
         end
     endgenerate
@@ -261,13 +300,13 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
               .USE_DPORT("TRUE"),
               .USE_MULT("MULTIPLY")) 
               u_dspA(  .A({ {21{1'b0}}, bram_outA[0] }),.D( { {13{1'b0}}, lab_dat_i }),.B(dspA_b),.C({{21{1'b0}},bram_outA[2],bram_outA[1],{9{1'b0}}}),.CEC(en_i),.CEB2(config_wr_i),
-                       .RSTA(1'b0),.RSTB(1'b0),.RSTC(1'b0),.RSTD(1'b0),.RSTCTRL(1'b0),.RSTINMODE(1'b0),.RSTM(1'b0),.RSTP(zero_i),
+                       .RSTA(!adjust && !en_i),.RSTB(1'b0),.RSTC(!en_i),.RSTD(1'b0),.RSTCTRL(1'b0),.RSTINMODE(1'b0),.RSTM(1'b0),.RSTP(zero_i),
                        .ACOUT(dspA_cascA_dspB),
                        .PCOUT(dspA_cascP_dspB),
                        .CARRYIN(0),
                        .INMODE(dspA_inmode),.CEINMODE(config_wr_i),
                        .OPMODE(dspA_opmode),.ALUMODE(dspA_alumode),.CARRYINSEL(dspA_carryinsel),
-                       .CEA2(en_i),.CED(lab_wr_i),.CEP(en_i),
+                       .CEA2(en_i || adjust),.CED(lab_wr_i),.CEP(1'b1),
                        .P(dspA_out),
                        .CLK(sys_clk_i));
 
@@ -322,10 +361,14 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
                                    .probe9(this_is_last_sample),
                                    .probe10(seam_previous_valid),
                                    .probe11(seam_previous_negative),
-                                   .probe12(seam_previous_zc_positive));
+                                   .probe12(seam_previous_zc_positive),
+                                   .probe13(lab_dat_o[11:0]),
+                                   .probe14(lab_wr_o));
        end
    endgenerate
     
+   assign lab_dat_o = dspA_out[0 +: 12];
+   assign lab_wr_o = bram_en_delay[2];
 
     // That's it: that's all this costs us (well, I mean, it's 48 BRAMs over everything so...)
     assign ack_o = (state == READ_ACK || state == WRITE_ACK);        

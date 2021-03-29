@@ -27,6 +27,9 @@
 //         bit 1: zero (if set, the BRAMs will be fed with zero, regardless)
 //         bit 2: ZC read mode (if 1, reads from the BRAM space will only read the low 9 bits - the ZC data)
 //                This ONLY AFFECTS the WISHBONE side, and DOES NOT affect writes!
+//         bit 3: adjust mode. When calram mode (enable) is not enabled, the event path is pedestal-adjusted.
+//         bit 4: adjustments are *negative* adjustments, not positive. This is probably the more useful
+//                since the low portion of the dynamic range is unusable.
 // addr 2: bits [31:0] = roll counter. This counts the number of 4096 chunks we've processed.
 `include "wishbone.vh"
 module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
@@ -54,6 +57,8 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
     wire [1:0] local_addr = wb_adr_i[2 +: 2];
     
     reg en_clk = 0;
+    reg adjust_clk = 0;
+    reg adjust_neg_clk = 0;
     reg wr_reg = 0;
     wire wr = (wb_cyc_i && wb_stb_i && wb_we_i && !wr_reg);
     wire en_wr = (chunk_addr == 24 && local_addr == 0 && wr);    
@@ -61,7 +66,7 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
     flag_sync u_enwrsync(.in_clkA(en_wr),.clkA(clk_i),.out_clkB(en_wr_sysclk),.clkB(sys_clk_i));
     
     reg [NUM_LABS-1:0] en_sysclk = {NUM_LABS{1'b0}};
-
+    
     reg config_wr = 0;
     wire config_wr_sysclk;
     flag_sync u_wrsync(.in_clkA(config_wr),.clkA(clk_i),.out_clkB(config_wr_sysclk),.clkB(sys_clk_i));
@@ -100,7 +105,7 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
                        .count_o(roll_count));
 
     wire [31:0] en_reg = { {28{1'b0}}, roll_complete_clk[1], zc_full_clk, 1'b0, en_clk };
-    wire [31:0] mode_reg = { {29{1'b0}}, zc_read_mode, zero_mode, zc_mode };
+    wire [31:0] mode_reg = { {27{1'b0}}, adjust_neg_clk, adjust_clk, zc_read_mode, zero_mode, zc_mode };
     wire [31:0] count_reg = roll_count[31:0];
     wire [31:0] control_mux[3:0];
     
@@ -141,6 +146,10 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
 
         if (chunk_addr == 24 && local_addr == 0 && wr) reset_counter <= wb_dat_i[1];
         else reset_counter <= 0;
+
+        // Mode register stuff. This MUST be written EVERY TIME when register 0 is written too.
+        if (chunk_addr == 24 && local_addr == 1 && wr) adjust_clk <= wb_dat_i[3];
+        if (chunk_addr == 24 && local_addr == 1 && wr) adjust_neg_clk <= wb_dat_i[4]; 
         if (chunk_addr == 24 && local_addr == 1 && wr) zc_mode <= wb_dat_i[0];
         if (chunk_addr == 24 && local_addr == 1 && wr) zero_mode <= wb_dat_i[1];
         if (chunk_addr == 24 && local_addr == 1 && wr) config_wr <= 1;
@@ -191,6 +200,8 @@ module wb_calram #(parameter NUM_LABS=24, parameter LAB4_BITS=12)
                                   .lab_adr_i(lab_addr[i]),
                                   .lab_stop_i(lab_stop_i[i]),
                                   .en_i(en_sysclk[i]),
+                                  .adjust_i(adjust_clk),
+                                  .adj_neg_i(adjust_neg_clk),
                                   .config_wr_i(config_wr_sysclk),
                                   .zc_mode_i(zc_mode),
                                   .zero_i(zero_mode_sysclk[1]),
