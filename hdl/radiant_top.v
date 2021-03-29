@@ -39,10 +39,15 @@ module radiant_top( input SYS_CLK_P,
                     input [23:0] TRIG,
                     input [23:0] THRESH,
                     output [23:0] THRESH_PWM,
+
+                    // PPS input.
+                    input SYNC_P,
+                    input SYNC_N,
+                    
                     // not actually differential in this usage
                     // we just drive them to ground (on both sides) to maybe
                     // improve signal integrity and reserve differential usage
-                    // for later
+                    // for later                                      
                     input CB_SCLK_P,
                     output CB_SCLK_N,
                     
@@ -75,7 +80,7 @@ module radiant_top( input SYS_CLK_P,
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
     parameter [3:0] VER_MINOR = 2;
-    parameter [7:0] VER_REV = 7;
+    parameter [7:0] VER_REV = 11;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
@@ -139,10 +144,12 @@ module radiant_top( input SYS_CLK_P,
     `WB_DEFINE( trig, 32, 16, 4);
     `WB_DEFINE( scal, 32, 18, 4);
     `WB_DEFINE( calram, 32, 19, 4);
+
     
     `WBM_KILL( scal, 32);
     `WB_KILL(pciec, 32, 22, 4);
     `WB_KILL(l4_ram_dummy, 32, 22, 4);
+    `WB_KILL(l4_ram, 32, 16, 4);
         
     // The boardman_interface is "close enough" to a WISHBONE classic interface, we just set
     // reg_en = cyc = stb
@@ -184,6 +191,7 @@ module radiant_top( input SYS_CLK_P,
     wire [1:0] rampdone_in;
     
     wire [23:0] lab4_channel_disable;
+    wire pps_flag;
     
     rad_id_ctrl #(.DEVICE(IDENT),.VERSION(DATEVERSION),.MONTIMING_POLARITY(CPLD_MT_POLARITY)) u_id(.clk_i(CLK50),.rst_i(1'b0),
                      `WBS_CONNECT( rad_id_ctrl, wb ),
@@ -214,6 +222,11 @@ module radiant_top( input SYS_CLK_P,
                      .shout_o(shout),
                      
                      .rampdone_i(rampdone_in),
+                     
+                     .pps_flag_o(pps_flag),
+                     
+                     .PPS_P(SYNC_P),
+                     .PPS_N(SYNC_N),
                      
                      .JTAGENB(JTAGENB),
                      .SST_SEL(SST_SEL),
@@ -247,11 +260,20 @@ module radiant_top( input SYS_CLK_P,
     wire readout_test_pattern;
     wire readout_fifo_rst;
     wire readout_rst;
+    wire readout_counter_rst;
+    
     wire [23:0] readout_fifo_empty;
     wire [9:0] readout_empty_size;
     wire [3:0] readout_prescale;
     wire readout_complete;
     wire trigger_in;
+    
+    // ALL OF THIS is sysclk domain
+    wire event_begin;
+    wire event_done;
+    wire dma_req;
+    wire dma_rdy;
+    
     lab4d_controller #(.NUM_LABS(24),.NUM_MONTIMING(2),.NUM_SCLK(2),.NUM_REGCLR(1),.NUM_RAMP(2),
                        .NUM_SHOUT(2),.NUM_WR(4),.WCLK_POLARITY(WCLK_POLARITY))    
                      u_controller( .clk_i(CLK50),
@@ -267,6 +289,8 @@ module radiant_top( input SYS_CLK_P,
                                    .invert_montiming_i(invert_montiming),
                                    
                                    .trig_i(trigger_in),
+                                   .event_o(event_begin),
+                                   .event_done_o(event_done),
                                    
                                    .clk_ps_i(sysclk_div8_ps),
                                    .ps_clk_o(ps_clk),
@@ -303,33 +327,66 @@ module radiant_top( input SYS_CLK_P,
                                    .SHOUT(shout),
                                    .WR(WR));
 
-    // sysclk domain
-    wire [24*12-1:0] lab_dat;
-    wire [23:0] lab_wr;      
-    wire [23:0] lab_stop;                             
+//    // sysclk domain
+//    wire [24*12-1:0] lab_dat;
+//    wire [23:0] lab_wr;      
+//    wire [23:0] lab_stop;                             
                                    
-    par_lab4d_ram #(.NUM_SS_INCR(2),.NUM_SRCLK(2),.SRCLK_POLARITY(SRCLK_POLARITY),.NUM_LAB4(24),.DOE_POLARITY(DOE_POLARITY),.SRCLK_DIFFERENTIAL("FALSE"))
+//    par_lab4d_ram #(.NUM_SS_INCR(2),.NUM_SRCLK(2),.SRCLK_POLARITY(SRCLK_POLARITY),.NUM_LAB4(24),.DOE_POLARITY(DOE_POLARITY),.SRCLK_DIFFERENTIAL("FALSE"))
+//            u_l4ram(.clk_i(CLK50),
+//                    .rst_i(1'b0),
+//                    `WBS_CONNECT(l4_ram, wb),
+//                    // In the SURF5 the LAB4D RAM had two ports, and swapped between them
+//                    // We're not going to do that: we're treating the WB bus as fully shared.
+//                    `WBS_CONNECT(l4_ram_dummy, wbdma),
+//                    .sys_clk_i(sysclk),
+//                    .wclk_i(wclk),
+//                    .readout_test_pattern_i(readout_test_pattern),
+//                    .readout_i(readout),
+//                    .readout_header_i(readout_header),
+//                    .readout_rst_i(readout_rst),
+//                    .readout_fifo_rst_i(readout_fifo_rst),
+//                    .readout_empty_size_i(readout_empty_size),
+//                    .readout_fifo_empty_o(readout_fifo_empty),
+//                    .prescale_i(readout_prescale),
+//                    .complete_o(readout_complete),
+                    
+//                    .lab_dat_o(lab_dat),
+//                    .lab_wr_o(lab_wr),
+//                    .lab_stop_o(lab_stop),
+                    
+//                    .DOE_LVDS_P(DOE_P),
+//                    .DOE_LVDS_N(DOE_N),
+//                    .SS_INCR(ss_incr),
+//                    .SRCLK_P(SRCLK),
+//                    // not differential
+//                    .SRCLK_N());
+    
+    // pass to CalRam
+    wire [24*12-1:0] lab_dat;
+    wire [24*4-1:0]  lab_header;
+    wire [24*12-1:0] lab_sample;
+    wire [24-1:0]    lab_wr;
+    // readout ONLY. RAM is stored after CalRam
+    par_lab4d_readout #(.NUM_SS_INCR(2),.NUM_SRCLK(2),.SRCLK_POLARITY(SRCLK_POLARITY),.NUM_LAB4(24),.DOE_POLARITY(DOE_POLARITY),.SRCLK_DIFFERENTIAL("FALSE"))
             u_l4ram(.clk_i(CLK50),
-                    .rst_i(1'b0),
-                    `WBS_CONNECT(l4_ram, wb),
-                    // In the SURF5 the LAB4D RAM had two ports, and swapped between them
-                    // We're not going to do that: we're treating the WB bus as fully shared.
-                    `WBS_CONNECT(l4_ram_dummy, wbdma),
                     .sys_clk_i(sysclk),
                     .wclk_i(wclk),
-                    .readout_test_pattern_i(readout_test_pattern),
                     .readout_i(readout),
-                    .readout_header_i(readout_header),
+                    .readout_counter_rst_i(readout_counter_rst),
                     .readout_rst_i(readout_rst),
-                    .readout_fifo_rst_i(readout_fifo_rst),
-                    .readout_empty_size_i(readout_empty_size),
-                    .readout_fifo_empty_o(readout_fifo_empty),
+
+                    .readout_header_i(readout_header),
+                    // this is fixed, defines the bits in the header that are address
+                    .readout_counter_mask_i(4'hC),
+                    
                     .prescale_i(readout_prescale),
                     .complete_o(readout_complete),
                     
                     .lab_dat_o(lab_dat),
+                    .lab_header_o(lab_header),
+                    .lab_sample_o(lab_sample),
                     .lab_wr_o(lab_wr),
-                    .lab_stop_o(lab_stop),
                     
                     .DOE_LVDS_P(DOE_P),
                     .DOE_LVDS_N(DOE_N),
@@ -338,18 +395,38 @@ module radiant_top( input SYS_CLK_P,
                     // not differential
                     .SRCLK_N());
 
+    // CalRam OUTPUT
+    wire [24*16-1:0] labcal_dat;
+    wire [24-1:0]    labcal_wr;
+    
     // hook up the calram
-    wb_calram u_calram(.clk_i(CLK50),
+    wb_calram_v2 u_calram(.clk_i(CLK50),
                        .rst_i(1'b0),
                        `WBS_CONNECT(calram, wb),
                        .sys_clk_i(sysclk),
                        .lab_dat_i(lab_dat),
                        .lab_wr_i(lab_wr),
-                       .lab_stop_i(lab_stop));
+                       .lab_header_i(lab_header),
+                       .lab_sample_i(lab_sample),
+                       .lab_dat_o(labcal_dat),
+                       .lab_wr_o(labcal_wr));
+
+    // WHO THE HECK KNOWS RIGHT NOW
+    wire [31:0] event_info = {32{1'b0}};
                                                                                   
     radiant_trig_top #(.TRIG_POLARITY(TRIG_POLARITY)) u_trig(.clk_i(CLK50),.rst_i(1'b0),
                                                              `WBS_CONNECT(trig, wb),
                                                              .pwm_clk_i(wclk),
+                                                             
+                                                             .pps_i(pps_flag),
+                                                             
+                                                             .event_i(event_begin),
+                                                             .event_info_i(event_info),
+                                                             .event_done_i(event_done),                                                                                                                          
+                                                             
+                                                             .event_ready_o(dma_req),
+                                                             .event_readout_ready_i(dma_rdy),
+                                                             
                                                              .TRIG(TRIG),
                                                              .THRESH(THRESH),
                                                              .THRESH_PWM(THRESH_PWM));                                  
@@ -381,8 +458,8 @@ module radiant_top( input SYS_CLK_P,
                      `WBS_CONNECT( spic , wb ),
                      `WBM_CONNECT( spid , wbdma ),
                      // LATER: this will come from the event module in the trigger path
-                     .dma_req_i(1'b0),
-                     .dma_rdy_o(),
+                     .dma_req_i(dma_req),
+                     .dma_rdy_o(dma_rdy),
                      .fast_clk_i(spiclk),
                      .PROG_FULL(PROG_FULL),
                      .SCLK(CB_SCLK_P), 
