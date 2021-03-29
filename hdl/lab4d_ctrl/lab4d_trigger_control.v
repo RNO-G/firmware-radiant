@@ -53,6 +53,8 @@ module lab4d_trigger_control #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 		input trigger_i,
 		input force_trigger_i,
 
+        output event_o,
+
 		// Trigger FIFO read interface
 		output trigger_empty_o,
 		input trigger_rd_i,
@@ -315,4 +317,5 @@ module lab4d_trigger_control #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 	assign trigger_debug_o[15] = 0;
 
 	assign current_bank_o = cur_bank;
+	assign event_o = trigger_i || force_trigger_sysclk;
 endmodule
