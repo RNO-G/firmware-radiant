@@ -6,6 +6,22 @@ module radiant_trig_top(    input clk_i,
                             input rst_i,
                             `WBS_NAMED_PORT(wb, 32, 16, 4),
                             input pwm_clk_i,
+                            
+                            // trigger event generation
+                            input event_i,
+                            input [31:0] event_info_i,
+                            // trigger event push (DMA trigger)
+                            input event_done_i,
+                            
+                            // Actual DMA trigger
+                            output event_ready_o,
+                            // Response from DMA that readout is beginning.
+                            input event_readout_ready_i,
+                            
+                            
+                            // PPS input. This is a flag in sysclk.
+                            input pps_i,
+                                                                                                                                            
                             input [23:0] TRIG,
                             input [23:0] THRESH,
                             output [23:0] THRESH_PWM,
@@ -26,22 +42,48 @@ module radiant_trig_top(    input clk_i,
         end
     endgenerate
     
+    // Event control space is 0x0000 - 0x1FF. Right now shadowed above.
+    `WB_DEFINE(ctrl, 32, 9, 4);
+    wire ctrl_is_selected = (wb_adr_i[9] == 0);
+    assign ctrl_cyc_o = wb_cyc_i && ctrl_is_selected;
+    assign ctrl_stb_o = wb_stb_i;
+    assign ctrl_we_o = wb_we_i;
+    assign ctrl_adr_o = wb_adr_i[8:0];
+    assign ctrl_dat_o = wb_dat_i;
+    
+    // PWM space is 0x0200-0x03FF nominally. Right now shadowed above.
     `WB_DEFINE(pwm, 32, 32, 4);
-    wire pwm_is_selected = 1'b1; // this should be |wb_adr_i[15:9], make it 1 for now
+    wire pwm_is_selected = (wb_adr_i[9] == 1);
     assign pwm_cyc_o = wb_cyc_i && pwm_is_selected;
     assign pwm_stb_o = wb_stb_i;
     assign pwm_we_o = wb_we_i;
     assign pwm_adr_o = { {23{1'b0}}, wb_adr_i[8:0] };
     assign pwm_dat_o = wb_dat_i;
-    assign pwm_sel_o = wb_sel_i;
+    assign pwm_sel_o = wb_sel_i;    
     
     // this needs to be a proper mux
-    assign wb_ack_o = pwm_ack_i;
-    assign wb_dat_o = pwm_dat_i;
-    assign wb_err_o = pwm_ack_i;
-    assign wb_rty_o = pwm_rty_i;
+    assign wb_ack_o = (ctrl_is_selected) ? ctrl_ack_i : pwm_ack_i;
+    assign wb_dat_o = (ctrl_is_selected) ? ctrl_dat_i : pwm_dat_i;
+    assign wb_err_o = (ctrl_is_selected) ? ctrl_err_i : pwm_err_i;
+    assign wb_rty_o = (ctrl_is_selected) ? ctrl_rty_i : pwm_rty_i;
     
-    // the address here is 
+    // Event control core.
+    // Contains PPS counter, sync, event counter, event generation, etc.
+    radiant_event_ctrl u_evctrl(.clk_i(clk_i),
+                                .rst_i(rst_i),
+                                `WBS_CONNECT( ctrl, wb),
+                                .sys_clk_i(sys_clk_i),
+                                .event_i(event_i),
+                                .event_info_i(event_info_i),
+                                .event_done_i(event_done_i),
+                                
+                                .event_ready_o(event_ready_o),
+                                .event_readout_ready_i(event_readout_ready_i),
+                                
+                                .pps_i(pps_i));
+                                
+    
+    // PWM core
     pwm_wrap u_wrap(.clk_i(clk_i),
                     .rst_i(rst_i),
                     `WBS_CONNECT( pwm , wb ),
