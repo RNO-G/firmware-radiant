@@ -95,6 +95,9 @@ module rad_id_ctrl(
         // Ramp/DONE input (when we're not driving it)
         input [1:0] rampdone_i,
         
+        // PPS flag (in sysclk domain)
+        output pps_flag_o,
+        
         // JTAG enable
         output JTAGENB,
         // JTAG signals. 1=right, 0=left
@@ -105,6 +108,10 @@ module rad_id_ctrl(
 
         // clock sel
         output [1:0] SST_SEL,
+
+        // PPS input
+        input PPS_P,
+        input PPS_N,
 
 		// SPI
 		output MOSI,
@@ -120,6 +127,7 @@ module rad_id_ctrl(
 		parameter SPI_DEBUG = `RAD_ID_CTRL_SPI_DEBUG;
 		
 		parameter [23:0] MONTIMING_POLARITY = {24{1'b0}};
+
 
 		// Device DNA (used for identification)
 		wire dna_data;
@@ -180,6 +188,26 @@ module rad_id_ctrl(
 		reg [31:0] reset_reg = {32{1'b0}};        
 
 		reg [31:0] pps_sel_reg = {32{1'b0}};
+		
+		// PPS core. Has an internal PPS option plus
+        // programmable PPS holdoff. Internal PPS comes from int_clk,
+        // PPS flag output is in ext_clk and the holdoff is in
+        // 2^10 ext clocks.
+        wire pps_update_holdoff_clk;
+        wire pps_update_holdoff;
+        flag_sync u_update(.in_clkA(pps_update_holdoff_clk),.clkA(clk_i),.out_clkB(pps_update_holdoff),.clkB(sys_clk_o));
+        wire pps_in;
+        IBUFDS u_pps_in(.I(PPS_P),.IB(PPS_N),.O(pps_in));
+        // default holdoff of 13 millisecond. Can be up to 335 ms.
+        // sel_int_pps is assumed to be extremely slowly changing
+        pps_core #(.INTERNAL_FREQ(50000000),.DEFAULT_HOLDOFF(10)) u_pps( .int_clk_i(clk_i),
+                                                    .int_sel_i(sel_int_pps),
+                                                    .ext_clk_i(sys_clk_o),
+                                                    .ext_holdoff_i(pps_sel_reg[7:0]),
+                                                    .ext_holdoff_wr_i(pps_update_holdoff),
+                                                    .pps_i(pps_in),
+                                                    .pps_flag_o(pps_flag_o));
+		
 		reg [31:0] led_reg = {32{1'b0}};
 		wire [31:0] jtag_left_reg;
 		wire [31:0] jtag_right_reg;
@@ -273,6 +301,11 @@ module rad_id_ctrl(
 		`WISHBONE_ADDRESS( 16'h0034, reset_reg, OUTPUT, [31:0], 0);
 		`WISHBONE_ADDRESS( 16'h0038, led_reg, OUTPUT, [31:0], 0);
 		`WISHBONE_ADDRESS( 16'h003C, {32{1'b0}}, OUTPUT, [31:0], 0);
+		
+		
+		// need to generate a select for the PPS as well
+		`SELECT( BASE(16'h0010), pps_sel_reg_select, 0, 0);
+		assign pps_update_holdoff = pps_sel_reg_select && wb_we_i;
 		
 		// the JTAG addresses work like this:
 		// [7:0] TDI output values
