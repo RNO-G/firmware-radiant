@@ -30,7 +30,10 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		input sys_clk_div4_flag_i,
 		input sync_i,
 		input wclk_i,
+		
 		input trig_i,
+		output event_o,
+		output event_done_o,
 		
 		input [`LAB4_WR_WIDTH-1:0] reset_wr_i,
 		input [NUM_MONTIMING-1:0] invert_montiming_i,
@@ -44,6 +47,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		inout  sync_mon_io,
 		
 		output readout_o,
+		output readout_counter_rst_o,
 		output [3:0] readout_header_o,
 		output readout_test_pattern_o,
 		output readout_fifo_rst_o,
@@ -263,6 +267,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 
 	// Readout Register:
 	// bit 0: readout not complete (or - in a readout - set for ENTIRE buffer readout sequence). Helpful for rate-limiting soft triggers.
+	//        Also used to reset the window address counter.
 	// bit 1: readout fifo reset
 	// bit 2: readout reset
 	// bit 3: data available (any readout fifo is not empty)
@@ -277,6 +282,10 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	reg readout_pending = 0;	
 	reg readout_not_done = 0;
 	reg readout_not_done_reg = 0;
+	
+	wire all_readout_done = (readout_not_done_reg && !readout_not_done);
+	flag_sync u_all_done_sync(.in_clkA(all_readout_done),.clkA(wb_clk_i),.out_clkB(event_done),.clkB(sys_clk_i));	
+	
 	reg readout_data_not_test_pattern = 0;
 	reg readout_fifo_reset = 0;
 	reg readout_reset = 0;
@@ -378,9 +387,13 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	assign do_ramp = (pb_port[4:0] == 23) && pb_write && pb_outport[6];
 	wire do_readout;
 	wire readout_complete;
+	wire counter_reset_flag = readout_not_done && !readout_not_done_reg;
+	
 	assign do_readout = (pb_port[4:0] == 22) && pb_write && pb_outport[6];
 	flag_sync u_readout_flag(.in_clkA(do_readout),.clkA(clk_i),.out_clkB(readout_o),.clkB(sys_clk_i));
 	flag_sync u_complete_flag(.in_clkA(complete_i),.clkA(sys_clk_i),.out_clkB(readout_complete),.clkB(clk_i));
+    flag_sync u_counter_flag(.in_clkA(counter_reset_flag),.clkA(clk_i),.out_clkB(readout_counter_rst_o),.clkB(sys_clk_i));
+
 
 	assign trigger_start = (pb_port[4:0] == 20) && pb_write && pb_outport[0];
 	assign trigger_stop = (pb_port[4:0] == 20) && pb_write && pb_outport[1];
@@ -488,7 +501,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
         //         readouts per trigger.
 		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h54)) begin
 		    if (wb_sel_i[0]) begin
-                trigger_clear <= wb_dat_i[0];
+//                trigger_clear <= wb_dat_i[0];
                 force_trigger <= wb_dat_i[1];
             end
             
@@ -510,7 +523,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 			     end
             end
 		end else begin
-			trigger_clear <= 0;
+//			trigger_clear <= 0;
 			force_trigger <= 0;
 			post_trigger_wr <= 0;
 			trigger_repeat_wr <= 0;
@@ -568,6 +581,8 @@ module lab4d_controller #(parameter NUM_LABS=24,
 											  .trigger_i(trig_i),
 											  .force_trigger_i(force_trigger_readout),
 											  
+											  .event_o(event_o),
+											  
 											  .rst_i(trigger_reset),
 											  .post_trigger_i(post_trigger),
 											  .post_trigger_wr_i(post_trigger_wr),
@@ -577,7 +592,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 											  .trigger_empty_o(trigger_empty),
 											  .trigger_rd_i(trigger_read),
 											  .trigger_address_o(trigger_address),
-											  .trigger_clear_i(trigger_clear),
+											  .trigger_clear_i(all_readout_done),
 											  
 											  .trigger_debug_o(trigger_debug_o),
 											  
