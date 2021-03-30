@@ -417,6 +417,7 @@ module radiant_top( input SYS_CLK_P,
     radiant_trig_top #(.TRIG_POLARITY(TRIG_POLARITY)) u_trig(.clk_i(CLK50),.rst_i(1'b0),
                                                              `WBS_CONNECT(trig, wb),
                                                              .pwm_clk_i(wclk),
+                                                             .sys_clk_i(sysclk),
                                                              
                                                              .pps_i(pps_flag),
                                                              
