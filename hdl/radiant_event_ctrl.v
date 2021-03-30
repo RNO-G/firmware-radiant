@@ -8,18 +8,18 @@
 // This corresponds to 64 total control registers here, which dear lord I hope
 // is enough for here.
 //
-// 0x0000 : event control. bit[0] = reset all FIFOs, bit[1] = enable sync on next PPS, bit[31] = enable fake PPS
+// 0x0000 : event control. bit[0] = reset all FIFOs, bit[1] = enable sync on next PPS
 // 0x0004 : current pps count. Poll on this to change, then set bit 1 to sync everyone on next PPS.
 // 0x0008 : sysclk count at last PPS
 // 0x000C : sysclk count at lastlast PPS
-// 0x1000 : current event identifier (constant, always RDE0)
-// 0x1004 : current event second
-// 0x1008 : current event count
-// 0x100C : current event sysclk count
-// 0x1010 : current event info
-// 0x1014 : current event status flags
-// 0x1018 : current event last sysclk count
-// 0x101C : current event lastlast sysclk count
+// 0x0100 : current event identifier (constant, always RDE0)
+// 0x0104 : current event second
+// 0x0108 : current event count
+// 0x010C : current event sysclk count
+// 0x0110 : current event info
+// 0x0114 : current event status flags
+// 0x0118 : current event last sysclk count
+// 0x011C : current event lastlast sysclk count
 `include "wishbone.vh"
 module radiant_event_ctrl(
         input clk_i,
@@ -38,6 +38,10 @@ module radiant_event_ctrl(
         input pps_i
     );
         
+    // just 4 control regs for now
+    wire [31:0] control_regs[3:0];
+    // and 8 event regs
+    wire [31:0] event_regs[7:0];
     
     localparam [31:0] EVENT_IDENTIFIER = "RDE0";
     localparam NUM_EVENT_DWORDS = 8;
@@ -76,6 +80,15 @@ module radiant_event_ctrl(
     reg [31:0] last_sysclk_count_clk = {32{1'b0}};
     reg [31:0] lastlast_sysclk_count_clk = {32{1'b0}};        
         
+    // 0x0000 : event control. bit[0] = reset all FIFOs, bit[1] = enable sync on next PPS
+    // 0x0004 : current pps count. Poll on this to change, then set bit 1 to sync everyone on next PPS.
+    // 0x0008 : sysclk count at last PPS
+    // 0x000C : sysclk count at lastlast PPS
+    assign control_regs[0] = {32{1'b0}};
+    assign control_regs[1] = cur_sec_count_clk;
+    assign control_regs[2] = last_sysclk_count_clk;
+    assign control_regs[3] = lastlast_sysclk_count_clk;                
+        
     reg last_high_sec = 0;
     reg last_high_evcount = 0;
     reg last_high_syscount = 0;    
@@ -99,6 +112,14 @@ module radiant_event_ctrl(
     wire [31:0] event_dwords_read[NUM_EVENT_DWORDS-1:0];
     // read enable
     wire [NUM_EVENT_DWORDS-1:0] event_dword_rden;
+    assign event_regs[0] = event_dwords_read[0];
+    assign event_regs[1] = event_dwords_read[1];
+    assign event_regs[2] = event_dwords_read[2];
+    assign event_regs[3] = event_dwords_read[3];
+    assign event_regs[4] = event_dwords_read[4];
+    assign event_regs[5] = event_dwords_read[5];
+    assign event_regs[6] = event_dwords_read[6];
+    assign event_regs[7] = event_dwords_read[7];
 
     // constant
     assign event_dwords_read[0] = EVENT_IDENTIFIER;
@@ -120,7 +141,7 @@ module radiant_event_ctrl(
     assign event_dwords_write[6] = lastlast_sysclk_count;
 
     reg ack = 0;    
-
+    
     always @(posedge clk_i) begin
         if (pps_flag_clk) sync_enable_clk <= 1'b0;
         else if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[8:2] == 7'h00)) sync_enable_clk <= wb_dat_i[1];
@@ -208,7 +229,10 @@ module radiant_event_ctrl(
     // figure somethin' out for this later. Need to check clock domains and stuff.
     assign event_ready_o = 1'b0;    
     // ack
-    assign ack_o = ack && wb_cyc_i;
-    // maybe
-    assign pps_interrupt_o = do_pps;
+    assign wb_ack_o = ack && wb_cyc_i;
+    assign wb_err_o = 1'b0;
+    assign wb_rty_o = 1'b0;
+    // dat output
+    assign wb_dat_o = (wb_adr_i[8]) ? event_regs[wb_adr_i[2 +: 3]] : control_regs[wb_adr_i[2 +: 2]];    
+
 endmodule
