@@ -6,6 +6,7 @@ module radiant_trig_top(    input clk_i,
                             input rst_i,
                             `WBS_NAMED_PORT(wb, 32, 16, 4),
                             input pwm_clk_i,
+                            input sys_clk_i,
                             
                             // trigger event generation
                             input event_i,
