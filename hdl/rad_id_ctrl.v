@@ -128,6 +128,8 @@ module rad_id_ctrl(
 		
 		parameter [23:0] MONTIMING_POLARITY = {24{1'b0}};
 
+        localparam [7:0] DEFAULT_PPS_HOLDOFF = 10;
+
 
 		// Device DNA (used for identification)
 		wire dna_data;
@@ -187,7 +189,7 @@ module rad_id_ctrl(
         // bit [31]    = JTAG mode
 		reg [31:0] reset_reg = {32{1'b0}};        
 
-		reg [31:0] pps_sel_reg = {32{1'b0}};
+		reg [31:0] pps_sel_reg = {{24{1'b0}}, DEFAULT_PPS_HOLDOFF };
 		
 		// PPS core. Has an internal PPS option plus
         // programmable PPS holdoff. Internal PPS comes from int_clk,
@@ -200,7 +202,8 @@ module rad_id_ctrl(
         IBUFDS u_pps_in(.I(PPS_P),.IB(PPS_N),.O(pps_in));
         // default holdoff of 13 millisecond. Can be up to 335 ms.
         // sel_int_pps is assumed to be extremely slowly changing
-        pps_core #(.INTERNAL_FREQ(50000000),.DEFAULT_HOLDOFF(10)) u_pps( .int_clk_i(clk_i),
+        assign sel_int_pps = pps_sel_reg[31];
+        pps_core #(.INTERNAL_FREQ(50000000),.DEFAULT_HOLDOFF(DEFAULT_PPS_HOLDOFF)) u_pps( .int_clk_i(clk_i),
                                                     .int_sel_i(sel_int_pps),
                                                     .ext_clk_i(sys_clk_o),
                                                     .ext_holdoff_i(pps_sel_reg[7:0]),
@@ -288,7 +291,7 @@ module rad_id_ctrl(
 		`WISHBONE_ADDRESS( 16'h0004, VERSION, OUTPUT, [31:0], 0);
 		`WISHBONE_ADDRESS( 16'h0008, cpld_ctrl_reg, OUTPUTSELECT, sel_cpld_ctrl, 0);		
 		`WISHBONE_ADDRESS( 16'h000C, lab4_channel_disable, SIGNALRESET, [23:0], {24{1'b0}} );
-		`WISHBONE_ADDRESS( 16'h0010, pps_sel_reg, SIGNALRESET, [31:0], {32{1'b0}});
+		`WISHBONE_ADDRESS( 16'h0010, pps_sel_reg, SIGNALRESET, [31:0], {{24{1'b0}}, DEFAULT_PPS_HOLDOFF });
 		`WISHBONE_ADDRESS( 16'h0014, reset_reg, SIGNALRESET, [31:0], {32{1'b0}});
 		`WISHBONE_ADDRESS( 16'h0018, led_reg, OUTPUTSELECT, sel_led_reg, 0);
 		`WISHBONE_ADDRESS( 16'h001C, jtag_left_reg, OUTPUTSELECT, sel_jtag_left, 0);
