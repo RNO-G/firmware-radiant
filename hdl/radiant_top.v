@@ -80,7 +80,7 @@ module radiant_top( input SYS_CLK_P,
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
     parameter [3:0] VER_MINOR = 2;
-    parameter [7:0] VER_REV = 12;
+    parameter [7:0] VER_REV = 13;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
@@ -131,10 +131,7 @@ module radiant_top( input SYS_CLK_P,
     `WB_DEFINE( bmc , 32, 22, 4 );
     `WB_DEFINE( spid, 32, 22, 4 );
     `WB_DEFINE( pciec,32, 22, 4 );
-    
-    // this is a dummy bus, around for legacy reasons
-    `WB_DEFINE( l4_ram_dummy, 32, 22, 4);
-    
+      
     // not really 16 bits, actually only 15
     `WB_DEFINE( rad_id_ctrl, 32, 16, 4);
     // not really 16 bits, actually only 15
@@ -148,8 +145,6 @@ module radiant_top( input SYS_CLK_P,
     
     `WBM_KILL( scal, 32);
     `WB_KILL(pciec, 32, 22, 4);
-    `WB_KILL(l4_ram_dummy, 32, 22, 4);
-    `WB_KILL(l4_ram, 32, 16, 4);
         
     // The boardman_interface is "close enough" to a WISHBONE classic interface, we just set
     // reg_en = cyc = stb
@@ -410,6 +405,17 @@ module radiant_top( input SYS_CLK_P,
                        .lab_sample_i(lab_sample),
                        .lab_dat_o(labcal_dat),
                        .lab_wr_o(labcal_wr));
+    
+    wire event_fifo_reset;
+
+    par_lab4d_fifo #(.NUM_LAB4(24))
+        u_fifo( .clk_i(CLK50),
+                .rst_i(1'b0),
+                `WBS_CONNECT(l4_ram, wb),
+                .sys_clk_i(sysclk),
+                .lab_dat_i(labcal_dat),
+                .lab_wr_i(labcal_wr),
+                .fifo_rst_i(event_fifo_reset));
 
     // WHO THE HECK KNOWS RIGHT NOW
     wire [31:0] event_info = {32{1'b0}};
@@ -427,6 +433,8 @@ module radiant_top( input SYS_CLK_P,
                                                              
                                                              .event_ready_o(dma_req),
                                                              .event_readout_ready_i(dma_rdy),
+                                                             
+                                                             .event_fifo_reset_o(event_fifo_reset),
                                                              
                                                              .TRIG(TRIG),
                                                              .THRESH(THRESH),
