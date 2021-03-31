@@ -27,12 +27,17 @@ module radiant_event_ctrl(
         `WBS_NAMED_PORT(wb, 32, 9, 4),
         
         input sys_clk_i,
+        output event_fifo_reset_o,
         
+        // types are unused for now, they might be used to indicate dead events
         input event_i,
+        input event_type_i,
         input [31:0] event_info_i,
         input event_done_i,
 
+        // type is unused for now
         output event_ready_o,
+        output event_ready_type_o,
         input event_readout_ready_i,
         
         input pps_i
@@ -97,7 +102,7 @@ module radiant_event_ctrl(
     wire roll_syscount = (cur_sysclk_count[32] ^ last_high_syscount);
     
     // captured at event_i
-    wire [31:0] status_flags = { {29{1'b0}}, roll_syscount, roll_sec, roll_evcount };
+    wire [31:0] status_flags = { {28{1'b0}}, event_type_i, roll_syscount, roll_sec, roll_evcount };
 
     // Initial reset of the FIFOs. Works in sys_clk domain because that's likely to startup second.
     reg fifo_reset = 1;
@@ -141,6 +146,16 @@ module radiant_event_ctrl(
     assign event_dwords_write[6] = lastlast_sysclk_count;
 
     reg ack = 0;    
+
+    // Event type FIFO. This is what generates the DMA requests.
+    // Types are unused for now, they may be helpful later.
+    event_type_fifo u_type_fifo(.din(event_type_i),
+                                .wr_en(event_done_i),
+                                .clk(sys_clk_i),
+                                .dout(event_ready_type_o),
+                                .valid(event_ready_o),
+                                .rd_en(event_readout_ready_i && event_ready_o),
+                                .srst(fifo_reset_clk));
     
     always @(posedge clk_i) begin
         if (pps_flag_clk) sync_enable_clk <= 1'b0;
@@ -226,8 +241,6 @@ module radiant_event_ctrl(
     endgenerate                                
                                         
                     
-    // figure somethin' out for this later. Need to check clock domains and stuff.
-    assign event_ready_o = 1'b0;    
     // ack
     assign wb_ack_o = ack && wb_cyc_i;
     assign wb_err_o = 1'b0;
