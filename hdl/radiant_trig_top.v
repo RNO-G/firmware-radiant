@@ -13,6 +13,9 @@ module radiant_trig_top(    input clk_i,
                             input [31:0] event_info_i,
                             // trigger event push (DMA trigger)
                             input event_done_i,
+
+                            // reset event FIFOs
+                            output event_fifo_reset_o,
                             
                             // Actual DMA trigger
                             output event_ready_o,
@@ -74,11 +77,16 @@ module radiant_trig_top(    input clk_i,
                                 .rst_i(rst_i),
                                 `WBS_CONNECT( ctrl, wb),
                                 .sys_clk_i(sys_clk_i),
+                                
+                                .event_fifo_reset_o(event_fifo_reset_o),
+                                
                                 .event_i(event_i),
+                                .event_type_i(1'b0),
                                 .event_info_i(event_info_i),
                                 .event_done_i(event_done_i),
                                 
                                 .event_ready_o(event_ready_o),
+                                .event_ready_type_o(),
                                 .event_readout_ready_i(event_readout_ready_i),
                                 
                                 .pps_i(pps_i));
