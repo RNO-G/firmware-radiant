@@ -84,12 +84,15 @@ module radiant_event_ctrl(
         
     reg [31:0] last_sysclk_count_clk = {32{1'b0}};
     reg [31:0] lastlast_sysclk_count_clk = {32{1'b0}};        
+
+    wire [5:0] event_pending_count;
+    wire [5:0] event_pending_count_clk;
         
-    // 0x0000 : event control. bit[0] = reset all FIFOs, bit[1] = enable sync on next PPS
+    // 0x0000 : event control. bit[0] = reset all FIFOs, bit[1] = enable sync on next PPS. [21:16] = number of pending DMA events
     // 0x0004 : current pps count. Poll on this to change, then set bit 1 to sync everyone on next PPS.
     // 0x0008 : sysclk count at last PPS
     // 0x000C : sysclk count at lastlast PPS
-    assign control_regs[0] = {32{1'b0}};
+    assign control_regs[0] = { {10{1'b0}}, event_pending_count_clk ,{16{1'b0}} };
     assign control_regs[1] = cur_sec_count_clk;
     assign control_regs[2] = last_sysclk_count_clk;
     assign control_regs[3] = lastlast_sysclk_count_clk;                
@@ -156,6 +159,11 @@ module radiant_event_ctrl(
                                 .valid(event_ready_o),
                                 .rd_en(event_readout_ready_i && event_ready_o),
                                 .srst(fifo_reset_clk));
+    // async register's update period needs to be 3x ratio of in/out clocks (or 3, whichever's larger).
+    // input is sysclk = 100 MHz, output is wbclk = 50 MHz, so hey look that's 6. Make it 10 for fun.
+    async_register #(.WIDTH(6),.UPDATE_PERIOD(10))
+        u_count_register(.in_clkA(event_pending_count),.clkA(sys_clk_i),
+                         .out_clkB(event_pending_count_clk),.clkB(clk_i));    
     
     always @(posedge clk_i) begin
         if (pps_flag_clk) sync_enable_clk <= 1'b0;
