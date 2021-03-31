@@ -22,6 +22,7 @@
 // bit [8] - enable receive FIFO (from SPI path)
 // bits[15:9] - cycle delay
 // bits[27:16] - SPI flag indicator threshold
+// bit [30] - SPI flag indicator value
 // bit [31] - enable SPI flag output
 // address 0x01:
 // bit [0] - reset TX path
@@ -204,8 +205,10 @@ module spidma( input wb_clk_i,
 //        output [47:0]   count_o
 //    );    
     
-    wire [31:0] dma_control_regs[3:0];
-    assign dma_control_regs[0] = { enable_spitx_full, {4{1'b0}}, spitx_full_threshold, cycle_delay, enable_spirx,       // 31:8
+    wire prog_full_out;
+    
+    wire [31:0] dma_control_regs[3:0];    
+    assign dma_control_regs[0] = { enable_spitx_full, prog_full_out && enable_spitx_full, {3{1'b0}}, spitx_full_threshold, cycle_delay, enable_spirx,       // 31:8
                                    dma_byte_target, dma_byte_mode, 1'b0, dma_direction, dma_allow_ext_req, dma_run, dma_enable };
     assign dma_control_regs[1] = {32{1'b0}};
     assign dma_control_regs[2] = cur_descriptor_num;
@@ -401,7 +404,6 @@ module spidma( input wb_clk_i,
     // add spidma_tx_fifo, spidma_rx_fifo, gate the programmable full, and add the fast_spi_fifo interface
     
     // TX fifo goes from wb_clk_i -> fast_clk_i
-    wire prog_full_out;
     spidma_tx_fifo u_tx_fifo( .s_aclk(wb_clk_i),
                               .s_aresetn(!tx_reset),
                               .s_axis_tdata(tx_axis_tdata),
