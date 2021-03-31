@@ -308,7 +308,7 @@ module rad_id_ctrl(
 		
 		// need to generate a select for the PPS as well
 		`SELECT( BASE(16'h0010), pps_sel_reg_select, 0, 0);
-		assign pps_update_holdoff = pps_sel_reg_select && wb_we_i;
+		assign pps_update_holdoff_clk = pps_sel_reg_select && wb_we_i;
 		
 		// the JTAG addresses work like this:
 		// [7:0] TDI output values
