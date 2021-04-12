@@ -57,10 +57,15 @@ module par_lab4d_fifo #(
     generate
         genvar i,j;
         for (i=0;i<NUM_LAB4;i=i+1) begin : RL
+            wire [31:0] raw_data_out;
             assign lab_read[i] = fifo_read && (wb_adr_i[14:11] == i);
             lab4d_fifo u_fifo(.wr_clk(sys_clk_i),.wr_en(lab_wr_i[i]),.din(lab_dat_i[DATA_BITS*i +: DATA_BITS]),
-                              .rd_clk(clk_i),.rd_en(lab_read[i]),.dout(data_out[i]),
+                              .rd_clk(clk_i),.rd_en(lab_read[i]),.dout(raw_data_out),
                               .rst(fifo_rst_i));
+            // reorder: the data comes out of the FIFO essentially big endian.
+            // This ensures that if we dump the data out as a stream of bytes
+            // it *looks* like a little endian array of 16-bit words
+            assign data_out[i] = { raw_data_out[15:0], raw_data_out[31:16] };                              
         end
         for (j=NUM_LAB4;j<DATA_OUT_SIZE;j=j+1) begin : DM
             assign data_out[j] = data_out[ j % (DATA_OUT_SIZE>>1) ];
