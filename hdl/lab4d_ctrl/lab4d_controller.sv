@@ -387,13 +387,14 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	assign do_ramp = (pb_port[4:0] == 23) && pb_write && pb_outport[6];
 	wire do_readout;
 	wire readout_complete;
-	wire counter_reset_flag = readout_not_done && !readout_not_done_reg;
+	wire event_done_flag = readout_not_done && !readout_not_done_reg;
 	
 	assign do_readout = (pb_port[4:0] == 22) && pb_write && pb_outport[6];
 	flag_sync u_readout_flag(.in_clkA(do_readout),.clkA(clk_i),.out_clkB(readout_o),.clkB(sys_clk_i));
 	flag_sync u_complete_flag(.in_clkA(complete_i),.clkA(sys_clk_i),.out_clkB(readout_complete),.clkB(clk_i));
-    flag_sync u_counter_flag(.in_clkA(counter_reset_flag),.clkA(clk_i),.out_clkB(readout_counter_rst_o),.clkB(sys_clk_i));
-
+    flag_sync u_done_flag(.in_clkA(event_done_flag),.clkA(clk_i),.out_clkB(event_done_o),.clkB(sys_clk_i));
+    // When event is done, we reset the readout counter.
+    assign readout_counter_rst_o = event_done_o;
 
 	assign trigger_start = (pb_port[4:0] == 20) && pb_write && pb_outport[0];
 	assign trigger_stop = (pb_port[4:0] == 20) && pb_write && pb_outport[1];
