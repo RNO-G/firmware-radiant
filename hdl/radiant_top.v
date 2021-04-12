@@ -80,7 +80,7 @@ module radiant_top( input SYS_CLK_P,
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
     parameter [3:0] VER_MINOR = 2;
-    parameter [7:0] VER_REV = 13;
+    parameter [7:0] VER_REV = 14;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
@@ -301,6 +301,7 @@ module radiant_top( input SYS_CLK_P,
                                    .readout_test_pattern_o(readout_test_pattern),
                                    .readout_fifo_rst_o(readout_fifo_rst),
                                    .readout_rst_o(readout_rst),
+                                   .readout_counter_rst_o(readout_counter_rst),
                                    .readout_fifo_empty_i(readout_fifo_empty),
                                    .readout_empty_size_o(readout_empty_size),
                                    .prescale_o(readout_prescale),
