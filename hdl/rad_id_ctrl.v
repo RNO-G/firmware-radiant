@@ -15,6 +15,10 @@
 // *) LED output charlieplexer
 // *) SPI flash WISHBONE module.
 //
+// Register 0 has a "secret mode" - if you write a key to it "FKey" = 0x464b6579,
+// then the NEXT write to it will cause an ICAP reboot to that new address.
+//
+//
 // Module memory map:
 // Internal address range is 0x0000-0x7FFF.
 // 0x0000: Device ID   ('RDNT')
@@ -128,7 +132,17 @@ module rad_id_ctrl(
 		
 		parameter [23:0] MONTIMING_POLARITY = {24{1'b0}};
 
+        localparam [31:0] ICAP_KEY = "FKey";
+
         localparam [7:0] DEFAULT_PPS_HOLDOFF = 10;
+
+        // Key lock status.
+        reg key_unlocked = 0;
+        // ICAP reboot capture
+        reg [31:0] wbstar = {32{1'b0}};
+        // actual reboot flag
+        reg icap_reboot = 0;
+
 
 
 		// Device DNA (used for identification)
@@ -309,7 +323,30 @@ module rad_id_ctrl(
 		// need to generate a select for the PPS as well
 		`SELECT( BASE(16'h0010), pps_sel_reg_select, 0, 0);
 		assign pps_update_holdoff_clk = pps_sel_reg_select && wb_we_i;
-		
+
+        // key magic select
+        `SELECT( BASE(16'h0000), device_id_key_select, 0, 0);        
+
+        // and WBSTAR select
+        `SELECT( BASE(16'h0004), wbstar_select, 0, 0);        
+
+        // WBSTAR rebooting at VERSION is only allowed if it's IMMEDIATELY followed by
+        // a DEVICE key write.
+        always @(posedge clk_i) begin : KEY_LOCK
+            if (device_id_key_select && wb_dat_i == ICAP_KEY) key_unlocked <= 1;
+            else if (wb_cyc_i && wb_stb_i && wb_we_i && wb_ack_o && !device_id_key_select) key_unlocked <= 0;
+            
+            if (key_unlocked && wbstar_select) begin
+                icap_reboot <= 1;
+                wbstar <= wb_dat_i;
+            end
+        end
+
+        iprog_rst u_resetter(.WBSTAR(wbstar),
+                             .RST(icap_reboot),
+                             .CLK(clk_i),
+                             .RIP());        
+                
 		// the JTAG addresses work like this:
 		// [7:0] TDI output values
 		// [15:8] TMS output values
