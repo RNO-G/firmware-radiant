@@ -58,7 +58,7 @@ module par_lab4d_fifo #(
         genvar i,j;
         for (i=0;i<NUM_LAB4;i=i+1) begin : RL
             wire [31:0] raw_data_out;
-            assign lab_read[i] = fifo_read && (wb_adr_i[14:11] == i);
+            assign lab_read[i] = fifo_read && (l4_sel == i);
             lab4d_fifo u_fifo(.wr_clk(sys_clk_i),.wr_en(lab_wr_i[i]),.din(lab_dat_i[DATA_BITS*i +: DATA_BITS]),
                               .rd_clk(clk_i),.rd_en(lab_read[i]),.dout(raw_data_out),
                               .rst(fifo_rst_i));
