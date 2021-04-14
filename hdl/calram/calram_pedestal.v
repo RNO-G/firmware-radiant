@@ -368,7 +368,7 @@ module calram_pedestal  #(parameter LAB4_BITS=12,
    endgenerate
     
    assign lab_dat_o = dspA_out[0 +: 12];
-   assign lab_wr_o = bram_en_delay[2];
+   assign lab_wr_o = bram_en_delay[2] && !en_i;
 
     // That's it: that's all this costs us (well, I mean, it's 48 BRAMs over everything so...)
     assign ack_o = (state == READ_ACK || state == WRITE_ACK);        
