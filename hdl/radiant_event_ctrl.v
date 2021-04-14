@@ -256,4 +256,6 @@ module radiant_event_ctrl(
     // dat output
     assign wb_dat_o = (wb_adr_i[8]) ? event_regs[wb_adr_i[2 +: 3]] : control_regs[wb_adr_i[2 +: 2]];    
 
+    assign event_fifo_reset_o = fifo_reset;
+
 endmodule
