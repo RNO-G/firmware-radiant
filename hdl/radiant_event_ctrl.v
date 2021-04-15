@@ -169,6 +169,8 @@ module radiant_event_ctrl(
         if (pps_flag_clk) sync_enable_clk <= 1'b0;
         else if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[8:2] == 7'h00)) sync_enable_clk <= wb_dat_i[1];
     
+        fifo_reset_clk <= wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[8:2] == 7'h00) && ack && wb_dat_i[2];
+    
         do_pps <= pps_flag_clk;
     
         // Capture the current second count for monitoring.
