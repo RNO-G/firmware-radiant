@@ -13,7 +13,8 @@ module par_lab4d_fifo #(
         input [NUM_LAB4*DATA_BITS-1:0] lab_dat_i,
         input [NUM_LAB4-1:0] lab_wr_i,
         
-        input fifo_rst_i
+        input fifo_rst_i,
+        output fifo_empty_o
     );
     // if NUM_LAB4=24, then L4W = 5
     localparam L4W=$clog2(NUM_LAB4);
@@ -54,6 +55,8 @@ module par_lab4d_fifo #(
 		endcase
 	end    
 
+    wire [NUM_LAB4-1:0] fifo_empty;
+    assign fifo_empty_o = &fifo_empty;
     generate
         genvar i,j;
         for (i=0;i<NUM_LAB4;i=i+1) begin : RL
@@ -61,6 +64,7 @@ module par_lab4d_fifo #(
             assign lab_read[i] = fifo_read && (l4_sel == i);
             lab4d_fifo u_fifo(.wr_clk(sys_clk_i),.wr_en(lab_wr_i[i]),.din(lab_dat_i[DATA_BITS*i +: DATA_BITS]),
                               .rd_clk(clk_i),.rd_en(lab_read[i]),.dout(raw_data_out),
+                              .empty(fifo_empty[i]),
                               .rst(fifo_rst_i));
             // reorder: the data comes out of the FIFO essentially big endian.
             // This ensures that if we dump the data out as a stream of bytes
@@ -71,6 +75,8 @@ module par_lab4d_fifo #(
             assign data_out[j] = data_out[ j % (DATA_OUT_SIZE>>1) ];
         end
     endgenerate
+    
+    lab_fifo_debug u_ila(.clk(sys_clk_i),.probe0(fifo_rst_i),.probe1(fifo_empty));
     
     assign wb_ack_o = (state == ACK);
     assign wb_dat_o = data_out_registered;
