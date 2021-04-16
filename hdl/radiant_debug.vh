@@ -27,5 +27,8 @@
  `define FAST_SPI_FIFO_DEBUG "FALSE"
     // ILA for the SPI DMA engine
  `define SPIDMA_ENGINE_DEBUG "TRUE"    
-
+    // ILA for the LAB4 FIFO
+ `define LAB4_FIFO_DEBUG "TRUE"
+    // ILA for the WB Calram
+ `define WB_CALRAM_DEBUG "TRUE"
 `endif
