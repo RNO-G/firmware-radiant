@@ -16,6 +16,8 @@ module radiant_trig_top(    input clk_i,
 
                             // reset event FIFOs
                             output event_fifo_reset_o,
+                            // event FIFOs are empty
+                            input event_fifo_empty_i,
                             
                             // Actual DMA trigger
                             output event_ready_o,
@@ -79,7 +81,8 @@ module radiant_trig_top(    input clk_i,
                                 .sys_clk_i(sys_clk_i),
                                 
                                 .event_fifo_reset_o(event_fifo_reset_o),
-                                
+                                .event_fifo_empty_i(event_fifo_empty_i),
+                                    
                                 .event_i(event_i),
                                 .event_type_i(1'b0),
                                 .event_info_i(event_info_i),
