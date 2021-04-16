@@ -35,6 +35,7 @@
 // This is v2: it takes the output from the par_lab4d_readout, and also subsequently outputs
 // the processed data to go into the LAB4 FIFOs.
 `include "wishbone.vh"
+`include "radiant_debug.vh"
 module wb_calram_v2 #(parameter NUM_LABS=24, 
                    parameter LAB4_BITS=12, 
                    parameter DATA_BITS=16,
@@ -61,7 +62,7 @@ module wb_calram_v2 #(parameter NUM_LABS=24,
                   output [NUM_LABS-1:0] lab_wr_o
     );
     
-    localparam DEBUG = "FALSE";
+    localparam DEBUG = `WB_CALRAM_DEBUG;
 
     wire [NUM_LABS-1:0] rollover;
     wire [11:0] lab_addr[NUM_LABS-1:0];
@@ -209,10 +210,12 @@ module wb_calram_v2 #(parameter NUM_LABS=24,
         end
     end
     
-    wb_calram_ila u_ila(.clk(sys_clk_i),.probe0(debug_wr),.probe1(debug_header),.probe2(debug_data));
-    wb_calram_vio u_vio(.clk(sys_clk_i),.probe_out0(debug_sel));            
     generate
         genvar i;
+        if (DEBUG == "TRUE") begin : DBG
+            wb_calram_ila u_ila(.clk(sys_clk_i),.probe0(debug_wr),.probe1(debug_header),.probe2(debug_data));
+            wb_calram_vio u_vio(.clk(sys_clk_i),.probe_out0(debug_sel));            
+        end            
         for (i=0;i<NUM_LABS;i=i+1) begin : LL
             localparam DEBUG = (i == 6 || i==0) ? "TRUE" : "FALSE";
             reg rollover_reg = 0;
