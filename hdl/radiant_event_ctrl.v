@@ -28,7 +28,7 @@ module radiant_event_ctrl(
         
         input sys_clk_i,
         output event_fifo_reset_o,
-        
+        input event_fifo_empty_i,
         // types are unused for now, they might be used to indicate dead events
         input event_i,
         input event_type_i,
@@ -87,12 +87,15 @@ module radiant_event_ctrl(
 
     wire [5:0] event_pending_count;
     wire [5:0] event_pending_count_clk;
+
+    wire all_fifos_empty;
+    wire dmareq_fifo_empty;
         
-    // 0x0000 : event control. bit[0] = reset all FIFOs, bit[1] = enable sync on next PPS. [21:16] = number of pending DMA events
+    // 0x0000 : event control. bit[0] = reset all FIFOs, bit[1] = enable sync on next PPS. [6] pending empty, [7] FIFO empty. [21:16] = number of pending DMA events
     // 0x0004 : current pps count. Poll on this to change, then set bit 1 to sync everyone on next PPS.
     // 0x0008 : sysclk count at last PPS
     // 0x000C : sysclk count at lastlast PPS
-    assign control_regs[0] = { {10{1'b0}}, event_pending_count_clk ,{16{1'b0}} };
+    assign control_regs[0] = { {10{1'b0}}, event_pending_count_clk ,all_fifos_empty, dmareq_fifo_empty, {14{1'b0}} };
     assign control_regs[1] = cur_sec_count_clk;
     assign control_regs[2] = last_sysclk_count_clk;
     assign control_regs[3] = lastlast_sysclk_count_clk;                
@@ -150,6 +153,14 @@ module radiant_event_ctrl(
 
     reg ack = 0;    
 
+    wire type_fifo_empty_sysclk;
+    (* ASYNC_REG = "TRUE" *)
+    reg [1:0] type_fifo_empty_clk = {2{1'b0}};
+    wire [NUM_EVENT_DYNAMIC_DWORDS-1:0] dydw_fifo_empty;    
+
+    assign all_fifos_empty = (&dydw_fifo_empty) && event_fifo_empty_i;
+    assign dmareq_fifo_empty = type_fifo_empty_clk[1];
+
     // Event type FIFO. This is what generates the DMA requests.
     // Types are unused for now, they may be helpful later.
     event_type_fifo u_type_fifo(.din(event_type_i),
@@ -157,8 +168,10 @@ module radiant_event_ctrl(
                                 .clk(sys_clk_i),
                                 .dout(event_ready_type_o),
                                 .valid(event_ready_o),
+                                .empty(type_fifo_empty_sysclk),
                                 .rd_en(event_readout_ready_i && event_ready_o),
-                                .srst(fifo_reset_clk));
+                                .data_count(event_pending_count),
+                                .srst(fifo_reset));
     // async register's update period needs to be 3x ratio of in/out clocks (or 3, whichever's larger).
     // input is sysclk = 100 MHz, output is wbclk = 50 MHz, so hey look that's 6. Make it 10 for fun.
     async_register #(.WIDTH(6),.UPDATE_PERIOD(10))
@@ -166,6 +179,7 @@ module radiant_event_ctrl(
                          .out_clkB(event_pending_count_clk),.clkB(clk_i));    
     
     always @(posedge clk_i) begin
+        type_fifo_empty_clk <= { type_fifo_empty_clk[0], type_fifo_empty_sysclk };
         if (pps_flag_clk) sync_enable_clk <= 1'b0;
         else if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[8:2] == 7'h00)) sync_enable_clk <= wb_dat_i[1];
     
@@ -245,8 +259,9 @@ module radiant_event_ctrl(
                                             .wr_en(event_i),
                                             // shift up because event_dwords_read[0] is the identifier and doesn't
                                             // need a FIFO.
-                                            .dout(event_dwords_read[i+1]),
-                                            .rd_en(event_dword_rden[i+1]));
+                                            .empty(dydw_fifo_empty[i]),
+                                            .dout(event_dwords_read[i+(NUM_EVENT_DWORDS-NUM_EVENT_DYNAMIC_DWORDS)]),
+                                            .rd_en(event_dword_rden[i+(NUM_EVENT_DWORDS-NUM_EVENT_DYNAMIC_DWORDS)]));
         end
     endgenerate                                
                                         
