@@ -672,8 +672,8 @@ module lab4d_controller #(parameter NUM_LABS=24,
 //	assign debug_o[47 +: 8] = pb_port;
 //	assign debug_o[55] = dbg_ramp;
 
-    lab4d_sysclk_ila u_ila(.clk(sys_clk_i),
-                           .probe0(montiming_i));
+//    lab4d_sysclk_ila u_ila(.clk(sys_clk_i),
+//                           .probe0(montiming_i));
 
 	assign readout_header_o = readout_header_sysclk;
 	assign readout_fifo_rst_o = readout_fifo_reset;
