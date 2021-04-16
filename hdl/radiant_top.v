@@ -80,7 +80,7 @@ module radiant_top( input SYS_CLK_P,
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
     parameter [3:0] VER_MINOR = 2;
-    parameter [7:0] VER_REV = 18;
+    parameter [7:0] VER_REV = 19;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
@@ -408,6 +408,7 @@ module radiant_top( input SYS_CLK_P,
                        .lab_wr_o(labcal_wr));
     
     wire event_fifo_reset;
+    wire event_fifo_empty;
 
     par_lab4d_fifo #(.NUM_LAB4(24))
         u_fifo( .clk_i(CLK50),
@@ -416,6 +417,7 @@ module radiant_top( input SYS_CLK_P,
                 .sys_clk_i(sysclk),
                 .lab_dat_i(labcal_dat),
                 .lab_wr_i(labcal_wr),
+                .fifo_empty_o(event_fifo_empty),
                 .fifo_rst_i(event_fifo_reset));
 
     // WHO THE HECK KNOWS RIGHT NOW
@@ -436,6 +438,7 @@ module radiant_top( input SYS_CLK_P,
                                                              .event_readout_ready_i(dma_rdy),
                                                              
                                                              .event_fifo_reset_o(event_fifo_reset),
+                                                             .event_fifo_empty_i(event_fifo_empty),
                                                              
                                                              .TRIG(TRIG),
                                                              .THRESH(THRESH),
