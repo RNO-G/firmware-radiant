@@ -1,5 +1,6 @@
 `timescale 1ns / 1ps
 // ripped from par_lab4d_ram mostly
+`include "radiant_debug.vh"
 module par_lab4d_fifo #(
         parameter NUM_LAB4 = 24,
         parameter LAB4_BITS = 12,
@@ -16,6 +17,9 @@ module par_lab4d_fifo #(
         input fifo_rst_i,
         output fifo_empty_o
     );
+    
+    localparam DEBUG = `LAB4_FIFO_DEBUG;
+    
     // if NUM_LAB4=24, then L4W = 5
     localparam L4W=$clog2(NUM_LAB4);
 	localparam DATA_OUT_SIZE = (1<<L4W);
@@ -74,9 +78,11 @@ module par_lab4d_fifo #(
         for (j=NUM_LAB4;j<DATA_OUT_SIZE;j=j+1) begin : DM
             assign data_out[j] = data_out[ j % (DATA_OUT_SIZE>>1) ];
         end
+        if (DEBUG == "TRUE") begin : ILA
+            lab_fifo_debug u_ila(.clk(sys_clk_i),.probe0(fifo_rst_i),.probe1(fifo_empty));
+         end
     endgenerate
     
-    lab_fifo_debug u_ila(.clk(sys_clk_i),.probe0(fifo_rst_i),.probe1(fifo_empty));
     
     assign wb_ack_o = (state == ACK);
     assign wb_dat_o = data_out_registered;
