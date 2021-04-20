@@ -21,6 +21,7 @@
 // 0x0118 : current event last sysclk count
 // 0x011C : current event lastlast sysclk count
 `include "wishbone.vh"
+`include "radiant_debug.vh"
 module radiant_event_ctrl(
         input clk_i,
         input rst_i,
@@ -35,6 +36,7 @@ module radiant_event_ctrl(
         input [31:0] event_info_i,
         input event_done_i,
 
+        // These are all CLK_I registers!
         // type is unused for now
         output event_ready_o,
         output event_ready_type_o,
@@ -42,6 +44,8 @@ module radiant_event_ctrl(
         
         input pps_i
     );
+
+    localparam DEBUG = `EVENTCTRL_DEBUG;
         
     // just 4 control regs for now
     wire [31:0] control_regs[3:0];
@@ -153,33 +157,31 @@ module radiant_event_ctrl(
 
     reg ack = 0;    
 
-    wire type_fifo_empty_sysclk;
-    (* ASYNC_REG = "TRUE" *)
-    reg [1:0] type_fifo_empty_clk = {2{1'b0}};
+    wire type_fifo_empty;
     wire [NUM_EVENT_DYNAMIC_DWORDS-1:0] dydw_fifo_empty;    
 
     assign all_fifos_empty = (&dydw_fifo_empty) && event_fifo_empty_i;
-    assign dmareq_fifo_empty = type_fifo_empty_clk[1];
+    assign dmareq_fifo_empty = type_fifo_empty;
+
+    wire [4:0] event_pending_count_sysclk;
 
     // Event type FIFO. This is what generates the DMA requests.
     // Types are unused for now, they may be helpful later.
+    // This needs to be an ASYNCHRONOUS FIFO!!
+    // event_ready_o is in the wb_clk domain!
     event_type_fifo u_type_fifo(.din(event_type_i),
                                 .wr_en(event_done_i),
-                                .clk(sys_clk_i),
+                                .wr_clk(sys_clk_i),
+                                .rd_clk(clk_i),
                                 .dout(event_ready_type_o),
                                 .valid(event_ready_o),
-                                .empty(type_fifo_empty_sysclk),
+                                .empty(type_fifo_empty),
                                 .rd_en(event_readout_ready_i && event_ready_o),
-                                .data_count(event_pending_count),
-                                .srst(fifo_reset));
-    // async register's update period needs to be 3x ratio of in/out clocks (or 3, whichever's larger).
-    // input is sysclk = 100 MHz, output is wbclk = 50 MHz, so hey look that's 6. Make it 10 for fun.
-    async_register #(.WIDTH(6),.UPDATE_PERIOD(10))
-        u_count_register(.in_clkA(event_pending_count),.clkA(sys_clk_i),
-                         .out_clkB(event_pending_count_clk),.clkB(clk_i));    
-    
+                                .wr_data_count(event_pending_count_sysclk),
+                                .rd_data_count(event_pending_count_clk),
+                                .rst(fifo_reset));
+                                    
     always @(posedge clk_i) begin
-        type_fifo_empty_clk <= { type_fifo_empty_clk[0], type_fifo_empty_sysclk };
         if (pps_flag_clk) sync_enable_clk <= 1'b0;
         else if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[8:2] == 7'h00)) sync_enable_clk <= wb_dat_i[1];
     
@@ -262,6 +264,15 @@ module radiant_event_ctrl(
                                             .empty(dydw_fifo_empty[i]),
                                             .dout(event_dwords_read[i+(NUM_EVENT_DWORDS-NUM_EVENT_DYNAMIC_DWORDS)]),
                                             .rd_en(event_dword_rden[i+(NUM_EVENT_DWORDS-NUM_EVENT_DYNAMIC_DWORDS)]));
+        end
+        if (DEBUG == "TRUE") begin : ILA
+            event_ila u_ila(.clk(sys_clk_i),
+                            .probe0(event_i),
+                            .probe1(event_done_i),
+                            .probe2(event_pending_count_sysclk),
+                            .probe3(sync),
+                            .probe4(cur_sec_count),
+                            .probe5(cur_event_count));
         end
     endgenerate                                
                                         
