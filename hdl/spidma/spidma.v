@@ -476,7 +476,9 @@ module spidma( input wb_clk_i,
                              .probe3(descriptor_len),
                              .probe4(descriptor_done),
                              .probe5(cur_descriptor_num),
-                             .probe6(transaction_counter));
+                             .probe6(transaction_counter),
+                             .probe7(dma_rdy_o),
+                             .probe8(dma_req_i));
          end
      endgenerate
 
