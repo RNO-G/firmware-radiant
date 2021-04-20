@@ -42,7 +42,8 @@ module radiant_event_ctrl(
         output event_ready_type_o,
         input event_readout_ready_i,
         
-        input pps_i
+        input pps_i,
+        output sync_o
     );
 
     localparam DEBUG = `EVENTCTRL_DEBUG;
@@ -183,7 +184,7 @@ module radiant_event_ctrl(
                                     
     always @(posedge clk_i) begin
         if (pps_flag_clk) sync_enable_clk <= 1'b0;
-        else if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[8:2] == 7'h00)) sync_enable_clk <= wb_dat_i[1];
+        else if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[8:2] == 7'h00)) sync_enable_clk <= wb_dat_i[1];        
     
         fifo_reset_clk <= wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[8:2] == 7'h00) && ack && wb_dat_i[2];
     
@@ -202,6 +203,10 @@ module radiant_event_ctrl(
     
             
     always @(posedge sys_clk_i) begin
+        sync_enable_sysclk <= { sync_enable_sysclk[0], sync_enable_clk };
+        
+        sync <= pps_flag && sync_enable_sysclk;
+    
         if (sync) last_sysclk_count <= {32{1'b0}};
         else if (pps_flag) last_sysclk_count <= cur_sysclk_count;
         
@@ -285,5 +290,8 @@ module radiant_event_ctrl(
     assign wb_dat_o = (wb_adr_i[8]) ? event_regs[wb_adr_i[2 +: 3]] : control_regs[wb_adr_i[2 +: 2]];    
 
     assign event_fifo_reset_o = fifo_reset;
+
+    // sync
+    assign sync_o = sync;
 
 endmodule
