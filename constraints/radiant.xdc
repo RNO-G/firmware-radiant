@@ -152,8 +152,11 @@ set_property -dict {PACKAGE_PIN T3 IOSTANDARD LVDS_25 DIFF_TERM 1} [get_ports SY
 # unconnected. Used to get the SYNC signal in the phase scanner.
 set_property -dict {PACKAGE_PIN K15 IOSTANDARD LVCMOS25} [get_ports SYNCMON]
 
-# was FPGPIO0 - claiming for PROG_FULL
-set_property -dict {PACKAGE_PIN M7 IOSTANDARD LVCMOS25} [get_ports PROG_FULL]
+# was FPGPIO0 - claiming for PPS
+set_property -dict {PACKAGE_PIN M7 IOSTANDARD LVCMOS25} [get_ports PPS]
+
+# was FPGPIO1 - claiming for PROG_FULL
+set_property -dict {PACKAGE_PIN L7 IOSTANDARD LVCMOS25} [get_ports PROG_FULL]
 
 set_property -dict {PACKAGE_PIN K18 IOSTANDARD LVCMOS25} [get_ports REGCLR]
 
