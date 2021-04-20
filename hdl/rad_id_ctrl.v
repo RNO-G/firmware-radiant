@@ -113,9 +113,11 @@ module rad_id_ctrl(
         // clock sel
         output [1:0] SST_SEL,
 
+        // SYNC output enable
+        output sync_en_o,
+
         // PPS input
-        input PPS_P,
-        input PPS_N,
+        input PPS,
 
 		// SPI
 		output MOSI,
@@ -212,11 +214,11 @@ module rad_id_ctrl(
         wire pps_update_holdoff_clk;
         wire pps_update_holdoff;
         flag_sync u_update(.in_clkA(pps_update_holdoff_clk),.clkA(clk_i),.out_clkB(pps_update_holdoff),.clkB(sys_clk_o));
-        wire pps_in;
-        IBUFDS u_pps_in(.I(PPS_P),.IB(PPS_N),.O(pps_in));
+        wire pps_in = PPS;
         // default holdoff of 13 millisecond. Can be up to 335 ms.
         // sel_int_pps is assumed to be extremely slowly changing
         assign sel_int_pps = pps_sel_reg[31];
+        assign sync_en_o = pps_sel_reg[30];
         pps_core #(.INTERNAL_FREQ(50000000),.DEFAULT_HOLDOFF(DEFAULT_PPS_HOLDOFF)) u_pps( .int_clk_i(clk_i),
                                                     .int_sel_i(sel_int_pps),
                                                     .ext_clk_i(sys_clk_o),
