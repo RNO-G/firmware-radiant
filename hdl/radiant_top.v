@@ -40,9 +40,12 @@ module radiant_top( input SYS_CLK_P,
                     input [23:0] THRESH,
                     output [23:0] THRESH_PWM,
 
-                    // PPS input.
-                    input SYNC_P,
-                    input SYNC_N,
+                    // PPS
+                    input PPS,
+                    
+                    // sync output, hopefully...
+                    output SYNC_P,
+                    output SYNC_N,
                     
                     // not actually differential in this usage
                     // we just drive them to ground (on both sides) to maybe
@@ -123,7 +126,7 @@ module radiant_top( input SYS_CLK_P,
     wire ps_incdec;
     wire ps_done;
     // global 12.5 MHz sync
-    wire sync;
+    wire lab_sync;
     // 200 MHz
     wire wclk;
     IBUFDS u_sysclk_ibuf(.I(SYS_CLK_P),.IB(SYS_CLK_N),.O(sysclk_in));
@@ -187,14 +190,14 @@ module radiant_top( input SYS_CLK_P,
     
     wire [23:0] lab4_channel_disable;
     wire pps_flag;
-    
+    wire sync_en;
     rad_id_ctrl #(.DEVICE(IDENT),.VERSION(DATEVERSION),.MONTIMING_POLARITY(CPLD_MT_POLARITY)) u_id(.clk_i(CLK50),.rst_i(1'b0),
                      `WBS_CONNECT( rad_id_ctrl, wb ),
                      .sys_clk_in(sysclk_in),
                      .sys_clk_o(sysclk),
                      .sys_clk_div4_o(sysclk_div4),
                      .sys_clk_div4_flag_o(sysclk_div4_flag),
-                     .sync_o(sync),
+                     .sync_o(lab_sync),
                      .sync_reset_i(),
                      .wclk_o(wclk),
                      .spiclk_o(spiclk),
@@ -220,8 +223,9 @@ module radiant_top( input SYS_CLK_P,
                      
                      .pps_flag_o(pps_flag),
                      
-                     .PPS_P(SYNC_P),
-                     .PPS_N(SYNC_N),
+                     .sync_en_o(sync_en),
+                     
+                     .PPS(PPS),
                      
                      .JTAGENB(JTAGENB),
                      .SST_SEL(SST_SEL),
@@ -277,7 +281,7 @@ module radiant_top( input SYS_CLK_P,
                                     // MAKE THESE REAL
                                    .sys_clk_i(sysclk),
                                    .sys_clk_div4_flag_i(sysclk_div4_flag),
-                                   .sync_i(sync),
+                                   .sync_i(lab_sync),
                                    .wclk_i(wclk),
                                    
                                    .reset_wr_i(reset_wr),
@@ -422,13 +426,16 @@ module radiant_top( input SYS_CLK_P,
 
     // WHO THE HECK KNOWS RIGHT NOW
     wire [31:0] event_info = {32{1'b0}};
-                                                                                  
+
+    // this is a board-to-board sync
+    wire sync;                                                                                  
     radiant_trig_top #(.TRIG_POLARITY(TRIG_POLARITY)) u_trig(.clk_i(CLK50),.rst_i(1'b0),
                                                              `WBS_CONNECT(trig, wb),
                                                              .pwm_clk_i(wclk),
                                                              .sys_clk_i(sysclk),
                                                              
                                                              .pps_i(pps_flag),
+                                                             .sync_o(sync),
                                                              
                                                              .event_i(event_begin),
                                                              .event_info_i(event_info),
@@ -443,6 +450,8 @@ module radiant_top( input SYS_CLK_P,
                                                              .TRIG(TRIG),
                                                              .THRESH(THRESH),
                                                              .THRESH_PWM(THRESH_PWM));                                  
+    
+    OBUFTDS u_sync(.I(sync),.O(SYNC_P),.OB(SYNC_N),.T(!sync_en));
     
     reg [24:0] counter = {25{1'b0}};
     reg [1:0]  pulse_catch = {2{1'b0}};
