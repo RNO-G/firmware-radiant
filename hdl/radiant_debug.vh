@@ -31,4 +31,6 @@
  `define LAB4_FIFO_DEBUG "TRUE"
     // ILA for the WB Calram
  `define WB_CALRAM_DEBUG "TRUE"
+    // ILA for the Event debug
+ `define EVENTCTRL_DEBUG "TRUE"
 `endif
