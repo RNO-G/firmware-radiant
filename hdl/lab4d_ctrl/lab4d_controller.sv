@@ -387,7 +387,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	assign do_ramp = (pb_port[4:0] == 23) && pb_write && pb_outport[6];
 	wire do_readout;
 	wire readout_complete;
-	wire event_done_flag = readout_not_done && !readout_not_done_reg;
+	wire event_done_flag = !readout_not_done && readout_not_done_reg;
 	
 	assign do_readout = (pb_port[4:0] == 22) && pb_write && pb_outport[6];
 	flag_sync u_readout_flag(.in_clkA(do_readout),.clkA(clk_i),.out_clkB(readout_o),.clkB(sys_clk_i));
