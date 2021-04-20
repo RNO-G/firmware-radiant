@@ -27,6 +27,7 @@ module radiant_trig_top(    input clk_i,
                             
                             // PPS input. This is a flag in sysclk.
                             input pps_i,
+                            output sync_o,
                                                                                                                                             
                             input [23:0] TRIG,
                             input [23:0] THRESH,
@@ -91,7 +92,7 @@ module radiant_trig_top(    input clk_i,
                                 .event_ready_o(event_ready_o),
                                 .event_ready_type_o(),
                                 .event_readout_ready_i(event_readout_ready_i),
-                                
+                                .sync_o(sync_o),
                                 .pps_i(pps_i));
                                 
     
