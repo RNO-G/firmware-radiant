@@ -590,7 +590,6 @@ module rad_id_ctrl(
 		.CLKOUT1_DIVIDE(10.0),	 // SYSCLK (100 MHz)
 		.CLKOUT2_DIVIDE(40.0),	 // SYSCLK_DIV4 (25 MHz)
 		.CLKOUT3_DIVIDE(80.0),	 // SYSCLK_DIV8_PS (12.5 MHz)
-		.CLKOUT4_DIVIDE(3.0),
 		.CLKOUT3_USE_FINE_PS("TRUE"),
 		// CLKOUT0_DUTY_CYCLE - CLKOUT6_DUTY_CYCLE: Duty cycle for CLKOUT outputs (0.01-0.99).
 		.CLKOUT0_DUTY_CYCLE(0.5),
@@ -605,7 +604,6 @@ module rad_id_ctrl(
 													.CLKOUT1(sys_clk_mmcm),
 													.CLKOUT2(sys_clk_div4_mmcm),
 													.CLKOUT3(sys_clk_div8_ps_mmcm),
-													.CLKOUT4(spiclk_o),
 													.PSCLK(ps_clk_i),
 													.PSEN(ps_en_i),
 													.PSINCDEC(ps_incdec_i),
@@ -623,6 +621,11 @@ module rad_id_ctrl(
 		BUFG u_sysclk_div4(.I(sys_clk_div4_mmcm),.O(sys_clk_div4_o));
 		BUFG u_wclk(.I(wclk_mmcm),.O(wclk_o));
 		BUFG u_clkps(.I(sys_clk_div8_ps_mmcm),.O(sys_clk_div8_ps_o));
+
+        // derive SPICLK from the normal interface clock
+        wire spiclk_locked;
+        spi_clk_gen u_spiclk(.reset(reset_reg[0]), .clk_in1(clk_i),.clk_out1(spiclk_o),
+                             .locked(spiclk_locked));
 		
 		reg phase_select_flag = 0;
 		wire phase_select_flag_sysclk;
