@@ -1,3 +1,4 @@
+set_property PACKAGE_PIN V19 [get_ports {RAMP[0]}]
 set_property PACKAGE_PIN AA23 [get_ports {SSINCR_TDO[0]}]
 set_property PACKAGE_PIN D19 [get_ports {SSINCR_TDO[1]}]
 # Don't change this. The actual clock frequency isn't this high, we just make it this high to get safe timing.
@@ -53,15 +54,15 @@ set_property -dict {PACKAGE_PIN W24 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCL
 set_property -dict {PACKAGE_PIN U15 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[6]}]
 set_property -dict {PACKAGE_PIN U16 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[7]}]
 set_property -dict {PACKAGE_PIN R18 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[8]}]
-set_property -dict {PACKAGE_PIN H8 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {PCLK[9]}]
-set_property -dict {PACKAGE_PIN L8 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {PCLK[10]}]
-set_property -dict {PACKAGE_PIN K8 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {PCLK[11]}]
-set_property -dict {PACKAGE_PIN J6 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {PCLK[12]}]
-set_property -dict {PACKAGE_PIN K3 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {PCLK[13]}]
-set_property -dict {PACKAGE_PIN G5 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {PCLK[14]}]
-set_property -dict {PACKAGE_PIN H7 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {PCLK[15]}]
-set_property -dict {PACKAGE_PIN G6 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {PCLK[16]}]
-set_property -dict {PACKAGE_PIN F7 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {PCLK[17]}]
+set_property -dict {PACKAGE_PIN H8 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[9]}]
+set_property -dict {PACKAGE_PIN L8 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[10]}]
+set_property -dict {PACKAGE_PIN K8 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[11]}]
+set_property -dict {PACKAGE_PIN J6 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[12]}]
+set_property -dict {PACKAGE_PIN K3 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[13]}]
+set_property -dict {PACKAGE_PIN G5 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[14]}]
+set_property -dict {PACKAGE_PIN H7 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[15]}]
+set_property -dict {PACKAGE_PIN G6 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[16]}]
+set_property -dict {PACKAGE_PIN F7 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[17]}]
 set_property -dict {PACKAGE_PIN D20 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[18]}]
 set_property -dict {PACKAGE_PIN B21 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[19]}]
 set_property -dict {PACKAGE_PIN D21 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {PCLK[20]}]
@@ -78,15 +79,15 @@ set_property -dict {PACKAGE_PIN T24 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN
 set_property -dict {PACKAGE_PIN P15 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[6]}]
 set_property -dict {PACKAGE_PIN P16 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[7]}]
 set_property -dict {PACKAGE_PIN U17 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[8]}]
-set_property -dict {PACKAGE_PIN G8 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {SIN[9]}]
-set_property -dict {PACKAGE_PIN J8 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {SIN[10]}]
-set_property -dict {PACKAGE_PIN N8 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {SIN[11]}]
-set_property -dict {PACKAGE_PIN H6 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {SIN[12]}]
-set_property -dict {PACKAGE_PIN J5 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {SIN[13]}]
-set_property -dict {PACKAGE_PIN F5 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {SIN[14]}]
-set_property -dict {PACKAGE_PIN G7 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {SIN[15]}]
-set_property -dict {PACKAGE_PIN C2 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {SIN[16]}]
-set_property -dict {PACKAGE_PIN F8 IOSTANDARD LVCMOS25 DRIVE  4} [get_ports {SIN[17]}]
+set_property -dict {PACKAGE_PIN G8 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[9]}]
+set_property -dict {PACKAGE_PIN J8 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[10]}]
+set_property -dict {PACKAGE_PIN N8 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[11]}]
+set_property -dict {PACKAGE_PIN H6 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[12]}]
+set_property -dict {PACKAGE_PIN J5 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[13]}]
+set_property -dict {PACKAGE_PIN F5 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[14]}]
+set_property -dict {PACKAGE_PIN G7 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[15]}]
+set_property -dict {PACKAGE_PIN C2 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[16]}]
+set_property -dict {PACKAGE_PIN F8 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[17]}]
 set_property -dict {PACKAGE_PIN E20 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[18]}]
 set_property -dict {PACKAGE_PIN C21 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[19]}]
 set_property -dict {PACKAGE_PIN E21 IOSTANDARD LVCMOS25 DRIVE 4} [get_ports {SIN[20]}]
@@ -313,7 +314,6 @@ set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM 1 PACKAGE_PIN L20} [get_ports {
 set_property -dict {PACKAGE_PIN N18 IOSTANDARD LVCMOS25} [get_ports {SST_SEL[0]}]
 set_property -dict {PACKAGE_PIN G9 IOSTANDARD LVCMOS25} [get_ports {SST_SEL[1]}]
 
-set_property PACKAGE_PIN V19 [get_ports {RAMP[0]}]
 set_property IOSTANDARD LVCMOS25 [get_ports {RAMP[0]}]
 set_property PULLUP true [get_ports {RAMP[0]}]
 set_property PACKAGE_PIN D16 [get_ports {RAMP[1]}]
@@ -354,12 +354,10 @@ set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins u_id/u_mmcm
 set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins u_id/u_mmcm/CLKOUT0]] -to [get_clocks clk50_clock] 20.000
 set_max_delay -datapath_only -from [get_clocks clk50_clock] -to [get_clocks -of_objects [get_pins u_id/u_mmcm/CLKOUT0]] 20.000
 
-
-set_max_delay -datapath_only -from [get_clocks clk50_clock] -to [get_clocks -of_objects [get_pins u_id/u_mmcm/CLKOUT4]] 20.000
-set_max_delay -datapath_only -to [get_clocks clk50_clock] -from [get_clocks -of_objects [get_pins u_id/u_mmcm/CLKOUT4]] 20.000
-
+set_max_delay -datapath_only -from [get_clocks clk50_clock] -to [get_clocks -of_objects [get_pins u_id/u_spiclk/inst/mmcm_adv_inst/CLKOUT0]] 20.000
+set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins u_id/u_spiclk/inst/mmcm_adv_inst/CLKOUT0]] -to [get_clocks clk50_clock] 20.000
 
 set_property C_CLK_INPUT_FREQ_HZ 300000000 [get_debug_cores dbg_hub]
 set_property C_ENABLE_CLK_DIVIDER false [get_debug_cores dbg_hub]
 set_property C_USER_SCAN_CHAIN 1 [get_debug_cores dbg_hub]
-connect_debug_port dbg_hub/clk [get_nets CLK50_IBUF_BUFG]
+connect_debug_port dbg_hub/clk [get_nets sysclk]
