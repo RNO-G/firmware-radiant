@@ -83,7 +83,7 @@ module radiant_top( input SYS_CLK_P,
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
     parameter [3:0] VER_MINOR = 2;
-    parameter [7:0] VER_REV = 20;
+    parameter [7:0] VER_REV = 21;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
@@ -106,7 +106,7 @@ module radiant_top( input SYS_CLK_P,
         
         
     // polarity of the DOE inputs        
-    localparam [23:0] DOE_POLARITY =        24'b001001111110000001111001;
+    localparam [23:0] DOE_POLARITY =        24'b001001111110000011111001;
     
     // polarity of the SRCLK outputs
     localparam [1:0] SRCLK_POLARITY = 2'b00;
