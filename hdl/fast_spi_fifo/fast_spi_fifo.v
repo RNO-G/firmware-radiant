@@ -33,6 +33,10 @@ module fast_spi_fifo(
         output [7:0] m_axis_tdata,
         output       m_axis_tvalid,
         
+        // for debugging.
+        output [31:0] spi_clocks_seen,
+        output        spi_clocks_seen_valid,
+                
         input CS_B,
         input SCLK,
         input MOSI,
@@ -63,6 +67,13 @@ module fast_spi_fifo(
     reg       sclk_reg = 0;
     
     reg       sclk_rise = 0;
+
+    // tell the debug counter to count    
+    reg       sclk_count = 0;
+    // periodically capture counter
+    wire      sclk_count_capture;
+    // and indicate that it's valid.
+    reg       sclk_count_valid = 0;
     
     (* IOB = "TRUE" *)
     reg       cs_iob = 0;
@@ -140,6 +151,11 @@ module fast_spi_fifo(
         // this is *only* used for RX path, which is non-critical
         sclk_rise <= (sclk_iob && !sclk_reg);
         
+        // decouple counter timing
+        sclk_count <= sclk_rise;
+        // valid after capture
+        sclk_count_valid <= sclk_count_capture;
+        
         if ((sclk_iob && !sclk_reg) || miso_load)
             miso_iob <= shift_reg[6];
             
@@ -179,6 +195,13 @@ module fast_spi_fifo(
         // always capture: dn_full covers whether the data's valid or not
         if (s_axis_tvalid && s_axis_tready) data_next <= s_axis_tdata;
     end
+    wire [47:0] spi_debug_counter_cascade;
+    spi_debug_counter u_counter(.CLK(aclk),.CARRYIN(1'b1),.CEP(sclk_count),.PCOUT(spi_debug_counter_cascade));
+    spi_debug_capture u_capture(.CLK(aclk),.PCIN(spi_debug_counter_cascade),.CEP(sclk_count_capture),
+                                .P(spi_clocks_seen) );
+    // this generates a divide by 64, which is way slow enough for a clock domain cross to 50 MHz.
+    clk_div_ce #(.CLK_DIVIDE(31),.EXTRA_DIV2("TRUE"))
+        u_capture_clock(.clk(aclk),.ce(sclk_count_capture));
     
     assign m_axis_tdata = rx_capture_reg;
     assign m_axis_tvalid = rx_valid;
