@@ -59,6 +59,7 @@ module lab4d_trigger_control #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 		output trigger_empty_o,
 		input trigger_rd_i,
 		output [`LAB4_WR_WIDTH-1:0] trigger_address_o,
+		output trigger_last_o,
 		input trigger_clear_i,
         // ditch this, put a fixed ILA in here, we're in Vivado now		
 		output [15:0] trigger_debug_o,
@@ -126,6 +127,14 @@ module lab4d_trigger_control #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 		if (update_bank) cur_bank <= bank;
 	end
 	
+	// This is used A TON, so pull it out for readability.
+	wire trigger_is_done = (post_trigger_counter == post_trigger_limit && sys_clk_div4_flag_i);
+	// This is also for readability. Indicates the trigger will be done on the next cycle.
+	wire trigger_will_be_done = (post_trigger_counter == post_trigger_limit && pre_sys_clk_div4_flag);
+	// Hold whether or not we're about to repeat.
+	reg trigger_will_repeat = 0;
+	
+	
 	always @(posedge sys_clk_i) begin
 		if (sys_clk_div4_flag_i) sys_clk_counter <= {2{1'b0}};
 		else sys_clk_counter <= sys_clk_counter + 1;
@@ -165,11 +174,11 @@ module lab4d_trigger_control #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 		
 		// If we get a trigger, set to triggering state. Once we hit the post-trigger limit, exit that state.
 		if (trigger_i || force_trigger_sysclk) triggering <= 1;
-		else if (post_trigger_counter == post_trigger_limit && sys_clk_div4_flag_i && !do_repeat) triggering <= 0;
+		else if (trigger_is_done && !do_repeat) triggering <= 0;
 
 		// Capture address when we transition. Trigger address indicates LAST window.
 		// This crap is hardcoded.
-		if (triggering && post_trigger_counter == post_trigger_limit && sys_clk_div4_flag_i) 
+		if (triggering && trigger_is_done) 
 			trigger_address <= {window[0],bank,window[2:1]};
 
 		// Move to next buffer when we hit post trigger limit.
@@ -177,8 +186,11 @@ module lab4d_trigger_control #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 		else if (!enabled_sysclk) bank <= reset_wr_i[3:2]; // this needs to be altered to allow for BIST
 		
 		// Write the trigger into the FIFO when we hit the post trigger limit. trigger_write=1 and trigger_address latch happen at same time.
-		if (triggering && post_trigger_counter == post_trigger_limit && sys_clk_div4_flag_i) trigger_write <= 1;
+		if (triggering && trigger_is_done) trigger_write <= 1;
 		else trigger_write <= 0;
+
+        if (triggering && trigger_is_done) trigger_will_repeat <= do_repeat;
+        else trigger_will_repeat <= 0;
 
 		// Count the post trigger counter when triggering, but not when repeating. (do_repeat essentially acts as another trigger)
 		if (!triggering || do_repeat) post_trigger_counter <= {NUM_WINDOW_BITS{1'b0}};
@@ -192,7 +204,7 @@ module lab4d_trigger_control #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 
 		// this indicates that the trigger should be repeated (continued readout)
 		// The logic here ensures that do_repeat is definitely high when triggering goes high.
-		if ((triggering || trigger_i || force_trigger_sysclk) && (post_trigger_counter == post_trigger_limit) && pre_sys_clk_div4_flag && (repeat_count != trigger_repeat))
+		if ((triggering || trigger_i || force_trigger_sysclk) && trigger_will_be_done && (repeat_count != trigger_repeat))
 			do_repeat <= 1;
 		else
 			do_repeat <= 0;
@@ -212,8 +224,10 @@ module lab4d_trigger_control #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 		else if (trigger_clear_sysclk) bank_full_counter <= bank_full_counter - 1;
 
 	end
-
-	trigger_fifo u_fifo(.din(trigger_address),.dout(trigger_address_o),.rd_clk(clk_i),.wr_clk(sys_clk_i),
+    // The top bit flags if the trigger's actually complete (done through the repeat).
+    // trigger_write goes high the cycle after triggering would go low,
+    // so we need to catch do_repeat's state right then.
+	trigger_fifo u_fifo(.din({!trigger_will_repeat, trigger_address}),.dout({trigger_last_o, trigger_address_o}),.rd_clk(clk_i),.wr_clk(sys_clk_i),
 							  .wr_en(trigger_write),.rd_en(trigger_rd_i),.empty(trigger_empty_o),
 							  .rst(rst_i));
 
