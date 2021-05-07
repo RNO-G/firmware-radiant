@@ -136,19 +136,23 @@ module spidma( input wb_clk_i,
     wire cycle_delay_reached = ({cycle_delay,4'h0} == cycle_count);
             
     wire [31:0] cur_descriptor;
+    wire [31:0] cur_read_descriptor;
     wire [17:0] descriptor_addr = cur_descriptor[0 +: 18];
     wire        descriptor_addr_incr = cur_descriptor[18];
     wire [11:0] descriptor_len = cur_descriptor[19 +: 12];
     wire        descriptor_done = cur_descriptor[31];
     // Descriptor RAM.
+    // "a" controls the write + SPO output
+    // "dpra" controls the DPO output
     generate
         genvar i;
         for (i=0;i<4;i=i+1) begin : DR    
             descriptor_ram u_ram( .a(wb_adr_i[2 +: 5]),
                                   .d(wb_dat_i[8*i +: 8]),
-                                  .dpra( (dma_enable) ? cur_descriptor_num : wb_adr_i[2 +: 5] ),
+                                  .dpra( cur_descriptor_num ),                                 
                                   .clk(wb_clk_i),
                                   .we( descriptor_write[i] ),
+                                  .spo( cur_read_descriptor[8*i +: 8] ),
                                   .dpo( cur_descriptor[8*i +: 8] ) );
         end
     endgenerate
@@ -207,12 +211,29 @@ module spidma( input wb_clk_i,
     
     wire prog_full_out;
     
-    wire [31:0] dma_control_regs[3:0];    
+    wire [11:0] tx_fifo_count;
+
+    reg [31:0] spi_clock_count = {32{1'b0}};
+    wire [31:0] spi_clock_count_spiclk;
+    wire spi_count_update_spiclk;
+    wire spi_count_update;
+    flag_sync u_count_sync(.in_clkA(spi_count_update_spiclk),.out_clkB(spi_count_update),.clkA(fast_clk_i),.clkB(wb_clk_i));    
+    
+    // add a bunch of debugging guys
+    wire [31:0] dma_control_regs[7:0];    
     assign dma_control_regs[0] = { enable_spitx_full, prog_full_out && enable_spitx_full, {3{1'b0}}, spitx_full_threshold, cycle_delay, enable_spirx,       // 31:8
                                    dma_byte_target, dma_byte_mode, 1'b0, dma_direction, dma_allow_ext_req, dma_run, dma_enable };
     assign dma_control_regs[1] = {32{1'b0}};
     assign dma_control_regs[2] = cur_descriptor_num;
     assign dma_control_regs[3] = dma_transaction_counter;                                   
+    // Outputs what descriptor is being processed
+    assign dma_control_regs[4] = cur_descriptor;
+    // How many WB transactions the current descriptor has processed.
+    assign dma_control_regs[5] = transaction_counter;
+    // Space in the TX FIFO
+    assign dma_control_regs[6] = tx_fifo_count;
+    // Number of SPI clocks seen. Async register transfer. This is just free running, for diagnostics.
+    assign dma_control_regs[7] = spi_clock_count;
     
     
     // multiplex the outgoing data
@@ -224,6 +245,8 @@ module spidma( input wb_clk_i,
     end
     
     always @(posedge wb_clk_i) begin
+        if (spi_count_update) spi_clock_count <= spi_clock_count_spiclk;    
+    
         ack <= wb_cyc_i && wb_stb_i;
         if (wb_cyc_i && wb_stb_i && wb_we_i && wb_adr_i[7]) descriptor_write <= wb_sel_i;
         else descriptor_write <= {4{1'b0}};
@@ -462,6 +485,9 @@ module spidma( input wb_clk_i,
                          .m_axis_tdata( spirx_tdata ),
                          .m_axis_tvalid(spirx_tvalid),
                          
+                         .spi_clocks_seen( spi_clock_count_spiclk ),
+                         .spi_clocks_seen_valid( spi_count_update_spiclk ),
+                         
                          .CS_B(CS_B),
                          .SCLK(SCLK),
                          .MOSI(MOSI),
@@ -490,7 +516,7 @@ module spidma( input wb_clk_i,
     assign wbdma_we_o = (state == FROMSPI_WRITE);
 
     assign wb_ack_o = ack;
-    assign wb_dat_o = (wb_adr_i[7]) ? cur_descriptor : dma_control_regs[wb_adr_i[3:2]];
+    assign wb_dat_o = (wb_adr_i[7]) ? cur_read_descriptor : dma_control_regs[wb_adr_i[4:2]];
     assign wb_err_o = 1'b0;
     assign wb_rty_o = 1'b0;
         
