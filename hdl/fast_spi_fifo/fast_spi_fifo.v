@@ -208,4 +208,5 @@ module fast_spi_fifo(
     
     assign MISO = miso_iob;
     assign s_axis_tready = !dn_full;
+    assign spi_clocks_seen_valid = sclk_count_valid;
 endmodule
