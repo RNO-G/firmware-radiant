@@ -101,6 +101,10 @@ module spidma( input wb_clk_i,
     // soft DMA request
     reg soft_dma_request = 0;
 
+    // if 1, data to/from WISHBONE is byte-inverted
+    // Don't do this in byte mode, you'll lose your brain.
+    reg dma_big_endian = 0;
+
     // if 1, DMA is transferred as a single-byte write
     // if 0, DMA is a full 32 bit transfer
     reg dma_byte_mode = 0;
@@ -222,7 +226,7 @@ module spidma( input wb_clk_i,
     // add a bunch of debugging guys
     wire [31:0] dma_control_regs[7:0];    
     assign dma_control_regs[0] = { enable_spitx_full, prog_full_out && enable_spitx_full, {3{1'b0}}, spitx_full_threshold, cycle_delay, enable_spirx,       // 31:8
-                                   dma_byte_target, dma_byte_mode, 1'b0, dma_direction, dma_allow_ext_req, dma_run, dma_enable };
+                                   dma_byte_target, dma_byte_mode, dma_big_endian, dma_direction, dma_allow_ext_req, dma_run, dma_enable };
     assign dma_control_regs[1] = {32{1'b0}};
     assign dma_control_regs[2] = cur_descriptor_num;
     assign dma_control_regs[3] = dma_transaction_counter;                                   
@@ -319,12 +323,22 @@ module spidma( input wb_clk_i,
         end
         // Data register capture.
         if (state == TOSPI_READ && wbdma_ack_i) begin
-            wbdma_data_reg <= wbdma_dat_i;
+            if (dma_big_endian)
+                wbdma_data_reg <= { wbdma_dat_i[7:0], wbdma_dat_i[15:8], wbdma_dat_i[23:16], wbdma_dat_i[31:24] };
+            else
+                wbdma_data_reg <= wbdma_dat_i;
         end else if (rx_axis_tvalid && rx_axis_tready) begin
-            if (state == FROMSPI_FETCH_0) wbdma_data_reg[0 +: 8] <= rx_axis_tdata;
-            if (state == FROMSPI_FETCH_1) wbdma_data_reg[8 +: 8] <= rx_axis_tdata;
-            if (state == FROMSPI_FETCH_2) wbdma_data_reg[16 +: 8] <= rx_axis_tdata;
-            if (state == FROMSPI_FETCH_3) wbdma_data_reg[24 +: 8] <= rx_axis_tdata;
+            if (dma_big_endian) begin
+                if (state == FROMSPI_FETCH_0) wbdma_data_reg[24 +: 8] <= rx_axis_tdata;
+                if (state == FROMSPI_FETCH_1) wbdma_data_reg[16 +: 8] <= rx_axis_tdata;
+                if (state == FROMSPI_FETCH_2) wbdma_data_reg[8 +: 8] <= rx_axis_tdata;
+                if (state == FROMSPI_FETCH_3) wbdma_data_reg[0 +: 8] <= rx_axis_tdata;
+            end else begin                
+                if (state == FROMSPI_FETCH_0) wbdma_data_reg[0 +: 8] <= rx_axis_tdata;
+                if (state == FROMSPI_FETCH_1) wbdma_data_reg[8 +: 8] <= rx_axis_tdata;
+                if (state == FROMSPI_FETCH_2) wbdma_data_reg[16 +: 8] <= rx_axis_tdata;
+                if (state == FROMSPI_FETCH_3) wbdma_data_reg[24 +: 8] <= rx_axis_tdata;
+            end
         end               
         if (state == DECODE && cycle_delay_reached) begin
             if (descriptor_addr_incr) wbdma_adr_reg <= descriptor_addr + transaction_counter;
@@ -368,10 +382,10 @@ module spidma( input wb_clk_i,
             dma_enable <= wb_dat_i[0];
             dma_allow_ext_req <= wb_dat_i[2];
             dma_direction <= wb_dat_i[3];
-            //dma_incr_address <= wb_dat_i[4];
             dma_byte_mode <= wb_dat_i[5];
             dma_byte_target <= wb_dat_i[7:6];
             // just... simplify this
+            dma_big_endian <= wb_dat_i[4];
         end
         // the 1 cycle delay here's no big deal
         wbdma_sel_reg[0] <= !dma_byte_mode || (dma_byte_target == 2'b00);
@@ -436,6 +450,7 @@ module spidma( input wb_clk_i,
                               .m_axis_tdata(spitx_tdata),
                               .m_axis_tready(spitx_tready),
                               .m_axis_tvalid(spitx_tvalid),
+                              .axis_wr_data_count( tx_fifo_count ),
                               .axis_prog_full_thresh(spitx_full_threshold[10:0]),
                               .axis_prog_full(prog_full_out));
     
