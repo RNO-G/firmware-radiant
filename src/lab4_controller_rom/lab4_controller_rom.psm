@@ -53,6 +53,7 @@ CONSTANT	trigger_stop_bit,		02
 CONSTANT	trigger_empty_bit,		80
 CONSTANT	trigger_read_bit,		40
 CONSTANT	trigger_reset_bit,		20
+CONSTANT    trigger_last_bit,       40
 
 reset:
 main:
@@ -72,12 +73,15 @@ main:
 
 ; OK, so the FIFO is not empty. Read it out.
 readout:
+    ; Start the readout.
     load    s0, in_readout
     output  s0, readout_0
+    ; Set the read bit - the FIFO isn't a FWFT fifo.
 	load	s0,	trigger_read_bit
 	output	s0,	trigger_0
 	; Now fetch the data.
 	input	s0,	trigger_0
+	; ONLY fetch the address bit.
 	and	s0,	1F
 	load	s7,	s0
 	; The bank address comes only from bits 3:2.
@@ -210,6 +214,12 @@ readout_lp6:
 	; And begin readout again.
 	jump	readout_begin
 readout_complete:
+    ; We're done with this set of 8, but do we have more to process?
+	input	s0,	trigger_0
+    test    s0, trigger_last_bit
+    ; If the bit is not set, we DO NOT clear the in_readout bit
+    return  NZ
+    ; it WAS set, so clear it, which triggers event processing
     ; clear the in_readout bit
     load    s0, 00
     output  s0, readout_0
@@ -225,6 +235,9 @@ reset_request:
 	; and clear the reset request
 	load	s0, 00
 	output s0, control_port
+	; and clear the in_readout bit
+	load    s0, 00
+	output  s0, readout_0
 	jump	main
 
 runmode_request:
@@ -248,6 +261,9 @@ runmode_loop:
 	output	s0,	trigger_0
 	load	s0,	00
 	output	s0,	control_port
+	; and clear the in_readout bit
+	load    s0, 00
+	output  s0, readout_0
 	jump	main
 user_serial_request:
 	input	s8,	user_0
