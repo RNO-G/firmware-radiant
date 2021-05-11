@@ -11,6 +11,7 @@
 // Author:
 ////////////////////////////////////////////////////////////////////////////////
 `include "lab4.vh"
+`include "radiant_debug.vh"
 // The trigger control splits up the LAB4 into 4 banks of 8 windows each.
 // Due to LAB4 phase stuff the top address bit toggles each time, so the
 // banks are
@@ -65,6 +66,8 @@ module lab4d_trigger_control #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 		output [15:0] trigger_debug_o,
 		output [`LAB4_WR_WIDTH*NUM_WR-1:0] WR
     );
+    
+    localparam DEBUG = `LAB_TRIGGER_DEBUG;
     
     // do NOT change these
     localparam NUM_BANK_BITS = 2;
@@ -317,6 +320,21 @@ module lab4d_trigger_control #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 						  .R(!enabled_sysclk_delay[WR_DELAY]),
 						  .Q(WR[5*i+0]));
 		end
+		if (DEBUG == "TRUE") begin : DBG
+		  wire [5:0] dbg_window = {window[0],bank,window[2:1]};
+		  trigger_control_ila u_ila(.clk(sys_clk_i),
+		                            .probe0( dbg_window ),
+		                            .probe1(trigger_i),
+		                            .probe2(force_trigger_sysclk),
+		                            .probe3(trigger_write),
+		                            .probe4(triggering),
+		                            .probe5(rst_i),
+		                            .probe6(enabled_sysclk),
+		                            .probe7(start_sysclk),
+		                            .probe8(stop_sysclk),
+		                            .probe9(enable_next_bank),
+		                            .probe10(trigger_will_repeat));
+        end
 	endgenerate
 	assign trigger_debug_o[5:0] = {window[0],bank,window[2:1]};
 	assign trigger_debug_o[6] = trigger_i;
@@ -328,7 +346,7 @@ module lab4d_trigger_control #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 	assign trigger_debug_o[12] = start_sysclk;
 	assign trigger_debug_o[13] = stop_sysclk;
 	assign trigger_debug_o[14] = enable_next_bank;
-	assign trigger_debug_o[15] = 0;
+	assign trigger_debug_o[15] = trigger_will_repeat;
 
 	assign current_bank_o = cur_bank;
 	assign event_o = trigger_i || force_trigger_sysclk;
