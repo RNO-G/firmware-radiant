@@ -1,6 +1,7 @@
 `timescale 1ns / 1ps
 `include "wishbone.vh"
 `include "lab4.vh"
+`include "radiant_debug.vh"
 module radiant_top( input SYS_CLK_P,
                     input SYS_CLK_N,
                     output PULSE_P,
@@ -83,7 +84,7 @@ module radiant_top( input SYS_CLK_P,
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
     parameter [3:0] VER_MINOR = 2;
-    parameter [7:0] VER_REV = 23;
+    parameter [7:0] VER_REV = 24;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
