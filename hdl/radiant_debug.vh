@@ -33,4 +33,6 @@
  `define WB_CALRAM_DEBUG "TRUE"
     // ILA for the Event debug
  `define EVENTCTRL_DEBUG "TRUE"
+    // ILA for the trigger
+ `define LAB_TRIGGER_DEBUG "TRUE"
 `endif
