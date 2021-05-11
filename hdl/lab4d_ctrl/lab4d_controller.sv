@@ -243,7 +243,10 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	wire trigger_empty;
 	wire trigger_start;
 	wire trigger_stop;
+    // which address to read out
 	wire [LAB4_WR_WIDTH-1:0] trigger_address;
+    // is this the last request?
+	wire trigger_last;
 	reg trigger_clear = 0;
 	reg force_trigger = 0;
 	reg [2:0] post_trigger = {3{1'b0}};
@@ -262,7 +265,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	// bits[23]    = write post trigger count
 	// bits[30:24] = trigger repeat count
 	// bits[31]    = write trigger repeat count
-	assign trigger_register = {{6{1'b0}},trigger_repeat,{5{1'b0}},post_trigger,force_trigger_count,trigger_empty,2'b00,trigger_address};
+	assign trigger_register = {{6{1'b0}},trigger_repeat,{5{1'b0}},post_trigger,force_trigger_count,trigger_empty,1'b0,trigger_last,trigger_address};
 
 
 	// Readout Register:
@@ -593,6 +596,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 											  .trigger_empty_o(trigger_empty),
 											  .trigger_rd_i(trigger_read),
 											  .trigger_address_o(trigger_address),
+											  .trigger_last_o(trigger_last),
 											  .trigger_clear_i(all_readout_done),
 											  
 											  .trigger_debug_o(trigger_debug_o),
