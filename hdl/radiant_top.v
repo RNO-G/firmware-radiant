@@ -84,7 +84,7 @@ module radiant_top( input SYS_CLK_P,
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
     parameter [3:0] VER_MINOR = 2;
-    parameter [7:0] VER_REV = 24;
+    parameter [7:0] VER_REV = 26;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
@@ -130,6 +130,8 @@ module radiant_top( input SYS_CLK_P,
     wire lab_sync;
     // 200 MHz
     wire wclk;
+    // 400 MHz
+    wire trigclk;
     IBUFDS u_sysclk_ibuf(.I(SYS_CLK_P),.IB(SYS_CLK_N),.O(sysclk_in));
 
     `WB_DEFINE( bmc , 32, 22, 4 );
@@ -146,8 +148,6 @@ module radiant_top( input SYS_CLK_P,
     `WB_DEFINE( scal, 32, 18, 4);
     `WB_DEFINE( calram, 32, 19, 4);
 
-    
-    `WBM_KILL( scal, 32);
     `WB_KILL(pciec, 32, 22, 4);
         
     // The boardman_interface is "close enough" to a WISHBONE classic interface, we just set
@@ -192,6 +192,7 @@ module radiant_top( input SYS_CLK_P,
     wire [23:0] lab4_channel_disable;
     wire pps_flag;
     wire sync_en;
+    reg [24:0] counter = {25{1'b0}};
     rad_id_ctrl #(.DEVICE(IDENT),.VERSION(DATEVERSION),.MONTIMING_POLARITY(CPLD_MT_POLARITY)) u_id(.clk_i(CLK50),.rst_i(1'b0),
                      `WBS_CONNECT( rad_id_ctrl, wb ),
                      .sys_clk_in(sysclk_in),
@@ -202,6 +203,7 @@ module radiant_top( input SYS_CLK_P,
                      .sync_reset_i(),
                      .wclk_o(wclk),
                      .spiclk_o(spiclk),
+                     .trigclk_o(trigclk),
                      .reset_wr_o(reset_wr),
                      .invert_montiming_o(invert_montiming),
                      
@@ -429,11 +431,17 @@ module radiant_top( input SYS_CLK_P,
     wire [31:0] event_info = {32{1'b0}};
 
     // this is a board-to-board sync
-    wire sync;                                                                                  
+    wire sync;                                                           
+    wire pulse; 
+    localparam NUM_SCALERS = 24;                      
+    wire [NUM_SCALERS-1:0] scaler_inputs;
+    wire [23:0] trig_scalers; 
+    assign scaler_inputs[0 +: 24] = trig_scalers;
     radiant_trig_top #(.TRIG_POLARITY(TRIG_POLARITY)) u_trig(.clk_i(CLK50),.rst_i(1'b0),
                                                              `WBS_CONNECT(trig, wb),
                                                              .pwm_clk_i(wclk),
                                                              .sys_clk_i(sysclk),
+                                                             .trig_clk_i(trigclk),
                                                              
                                                              .pps_i(pps_flag),
                                                              .sync_o(sync),
@@ -448,32 +456,43 @@ module radiant_top( input SYS_CLK_P,
                                                              .event_fifo_reset_o(event_fifo_reset),
                                                              .event_fifo_empty_i(event_fifo_empty),
                                                              
+                                                             .pulse_o(pulse),
+                                                             .scal_o(trig_scalers),
+                                                             
                                                              .TRIG(TRIG),
                                                              .THRESH(THRESH),
                                                              .THRESH_PWM(THRESH_PWM));                                  
+
+    // Scalers
+    wire pps_flag_clk;
+    flag_sync u_clkA(.in_clkA(pps_flag),.clkA(sysclk),.clkB(CLK50),.out_clkB(pps_flag_clk));
+    radiant_scalers #(.NUM_SCALERS(NUM_SCALERS)) u_scalers(.clk_i(CLK50),.rst_i(1'b0),
+                                                  `WBS_CONNECT(scal, wb),                                                  
+                                                  .pps_i(pps_flag_clk),
+                                                  .sys_clk_i( sysclk ),
+                                                  .scal_i( scaler_inputs ));                                                  
     
     OBUFTDS u_sync(.I(sync),.O(SYNC_P),.OB(SYNC_N),.T(!sync_en));
     
-    reg [24:0] counter = {25{1'b0}};
-    reg [1:0]  pulse_catch = {2{1'b0}};
-    reg        pulse_enable = 0;
-    // just... do it every 16 for now. We need to make this controllable
-    // via a register and use a freakin DSP
     always @(posedge sysclk) begin
         counter <= counter[23:0] + 1;
-        // counter[0] would be every 2
-        // counter[1] would be every 4
-        // counter[2] would be every 8
-        // counter[3] would be every 16
-        // counter[4] would be every 32
-        pulse_catch <= {pulse_catch[0],counter[3]};
-        pulse_enable <= pulse_catch[0] && !pulse_catch[1];
     end
+//    reg [1:0]  pulse_catch = {2{1'b0}};
+//    reg        pulse_enable = 0;
+//    // just... do it every 16 for now. We need to make this controllable
+//    // via a register and use a freakin DSP
+//        // counter[0] would be every 2
+//        // counter[1] would be every 4
+//        // counter[2] would be every 8
+//        // counter[3] would be every 16
+//        // counter[4] would be every 32
+//        pulse_catch <= {pulse_catch[0],counter[5]};
+//        pulse_enable <= pulse_catch[0] && !pulse_catch[1];
 
         
-    wire pulse_out;
-    ODDR u_oddrpulse(.D1(1'b1),.D2(1'b0),.CE(pulse_enable),.C(sysclk),.S(1'b0),.R(1'b0),.Q(pulse_out));
-    OBUFDS u_obufpulse(.I(pulse_out),.O(PULSE_P),.OB(PULSE_N));
+//    wire pulse_out;
+//    ODDR u_oddrpulse(.D1(1'b1),.D2(1'b0),.CE(pulse_enable),.C(sysclk),.S(1'b0),.R(1'b0),.Q(pulse_out));
+    OBUFDS u_obufpulse(.I(pulse),.O(PULSE_P),.OB(PULSE_N));
     
     // SPI DMA module!
     spidma u_spidma( .wb_clk_i(CLK50),

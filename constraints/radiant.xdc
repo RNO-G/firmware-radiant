@@ -346,16 +346,41 @@ set_property CONFIG_VOLTAGE 2.5 [current_design]
 set_property CFGBVS VCCO [current_design]
 set_property BITSTREAM.CONFIG.CONFIGRATE 16 [current_design]
 
-set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins u_id/u_mmcm/CLKOUT3]] -to [get_clocks clk50_clock] 20.000
-set_max_delay -datapath_only -from [get_clocks clk50_clock] -to [get_clocks -of_objects [get_pins u_id/u_mmcm/CLKOUT3]] 20.000
-set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins u_id/u_mmcm/CLKOUT1]] -to [get_clocks -of_objects [get_pins u_id/u_mmcm/CLKOUT0]] 10.000
-set_max_delay -datapath_only -from [get_clocks clk50_clock] -to [get_clocks -of_objects [get_pins u_id/u_mmcm/CLKOUT1]] 20.000
-set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins u_id/u_mmcm/CLKOUT1]] -to [get_clocks clk50_clock] 20.000
-set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins u_id/u_mmcm/CLKOUT0]] -to [get_clocks clk50_clock] 20.000
-set_max_delay -datapath_only -from [get_clocks clk50_clock] -to [get_clocks -of_objects [get_pins u_id/u_mmcm/CLKOUT0]] 20.000
+# SPI clock
+create_generated_clock -name spiclk [get_pins u_id/u_spiclk/inst/mmcm_adv_inst/CLKOUT1]
+# Phase shifter clock
+create_generated_clock -name psclk [get_pins u_id/u_mmcm/CLKOUT3]
+# System clock
+create_generated_clock -name sysclk [get_pins u_id/u_mmcm/CLKOUT1]
+# Copy of SST clock
+create_generated_clock -name sstclk [get_pins u_Id/u_mmcm/CLKOUT2]
+# Wilkinson clock
+create_generated_clock -name wclk [get_pins u_id/u_spiclk/inst/mmcm_adv_inst/CLKOUT2]
+# Trigger clock (will be used shortly)
+create_generated_clock -name trigclk [get_pins u_id/u_spiclk/inst/mmcm_adv_inst/CLKOUT0]
 
-set_max_delay -datapath_only -from [get_clocks clk50_clock] -to [get_clocks -of_objects [get_pins u_id/u_spiclk/inst/mmcm_adv_inst/CLKOUT0]] 20.000
-set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins u_id/u_spiclk/inst/mmcm_adv_inst/CLKOUT0]] -to [get_clocks clk50_clock] 20.000
+# Cross clock from clk50 to psclk
+set_max_delay -datapath_only -from [get_clocks psclk] -to [get_clocks clk50_clock] 20.000
+set_max_delay -datapath_only -to [get_clocks psclk] -from [get_clocks clk50_clock] 20.000
+# Cross clock from sysclk to wclk
+set_max_delay -datapath_only -from [get_clocks sysclk] -to [get_clocks wclk] 10.000
+set_max_delay -datapath_only -to [get_clocks sysclk] -from [get_clocks wclk] 10.000
+# Cross clock from sysclk to clk50
+set_max_delay -datapath_only -from [get_clocks sysclk] -to [get_clocks clk50_clock] 20.000
+set_max_delay -datapath_only -to [get_clocks sysclk] -from [get_clocks clk50_clock] 20.000
+# Cross clock from clk50 to wclk
+set_max_delay -datapath_only -from [get_clocks wclk] -to [get_clocks clk50_clock] 20.000
+set_max_delay -datapath_only -to [get_clocks wclk] -from [get_clocks clk50_clock] 20.000
+# Cross clock from clk50 to spiclk
+set_max_delay -datapath_only -from [get_clocks spiclk] -to [get_clocks clk50_clock] 20.000
+set_max_delay -datapath_only -to [get_clocks spiclk] -from [get_clocks clk50_clock] 20.000
+# cross clock from trigclk to wclk (pwmclk)
+set_max_delay -datapath_only -from [get_clocks wclk] -to [get_clocks trigclk] 5.000
+set_max_delay -datapath_only -to [get_clocks wclk] -from [get_clocks trigclk] 5.000
+# cross clock from trigclk to clk50
+set_max_delay -datapath_only -from [get_clocks trigclk] -to [get_clocks clk50_clock] 20.000
+set_max_delay -datapath_only -to [get_clocks trigclk] -from [get_clocks clk50_clock] 20.000
+
 
 set_property C_CLK_INPUT_FREQ_HZ 300000000 [get_debug_cores dbg_hub]
 set_property C_ENABLE_CLK_DIVIDER false [get_debug_cores dbg_hub]

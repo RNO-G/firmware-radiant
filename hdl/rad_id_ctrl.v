@@ -66,6 +66,8 @@ module rad_id_ctrl(
         output wclk_o,
         // 333 MHz clock
         output spiclk_o,
+        // 400 MHz clock
+        output trigclk_o,
         
         // phase shifter 12.5 MHz clock
         output sys_clk_div8_ps_o,
@@ -579,6 +581,8 @@ module rad_id_ctrl(
 		wire sys_clk_div8_ps_mmcm;
 		wire mmcm_reset = reset_reg[0];
 
+        // EFF ME WCLK HAS TO BE FIXED FREQUENCY
+
 		MMCME2_ADV #(
 		.BANDWIDTH("OPTIMIZED"), // Jitter programming ("HIGH","LOW","OPTIMIZED")
 		.CLKFBOUT_MULT_F(40.0), // Multiply value for all CLKOUT (2.000-64.000).
@@ -600,7 +604,7 @@ module rad_id_ctrl(
 		.REF_JITTER2(0.0),
 		.STARTUP_WAIT("FALSE")) u_mmcm(	.CLKIN1(sys_clk_in),
 													.CLKIN2(),
-													.CLKOUT0(wclk_mmcm),
+													.CLKOUT0(),
 													.CLKOUT1(sys_clk_mmcm),
 													.CLKOUT2(sys_clk_div4_mmcm),
 													.CLKOUT3(sys_clk_div8_ps_mmcm),
@@ -619,12 +623,12 @@ module rad_id_ctrl(
 		BUFG u_sysclk(.I(sys_clk_mmcm),.O(sys_clk_o));
 		BUFG u_sysclk_fb(.I(mmcm_fb_out),.O(mmcm_fb_in));
 		BUFG u_sysclk_div4(.I(sys_clk_div4_mmcm),.O(sys_clk_div4_o));
-		BUFG u_wclk(.I(wclk_mmcm),.O(wclk_o));
 		BUFG u_clkps(.I(sys_clk_div8_ps_mmcm),.O(sys_clk_div8_ps_o));
 
         // derive SPICLK from the normal interface clock
+        // *plus* WCLK goddamnit
         wire spiclk_locked;
-        spi_clk_gen u_spiclk(.reset(reset_reg[0]), .clk_in1(clk_i),.clk_out1(spiclk_o),
+        spi_clk_gen u_spiclk(.reset(reset_reg[0]), .clk_in1(clk_i),.clk_out1(trigclk_o),.clk_out2(spiclk_o),.clk_out3(wclk_o),
                              .locked(spiclk_locked));
 		
 		reg phase_select_flag = 0;
