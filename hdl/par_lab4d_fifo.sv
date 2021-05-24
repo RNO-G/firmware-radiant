@@ -1,6 +1,7 @@
 `timescale 1ns / 1ps
 // ripped from par_lab4d_ram mostly
 `include "radiant_debug.vh"
+`include "wishbone.vh"
 module par_lab4d_fifo #(
         parameter NUM_LAB4 = 24,
         parameter LAB4_BITS = 12,
