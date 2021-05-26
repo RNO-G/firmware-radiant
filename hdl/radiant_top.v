@@ -463,13 +463,12 @@ module radiant_top( input SYS_CLK_P,
                                                              .THRESH(THRESH),
                                                              .THRESH_PWM(THRESH_PWM));                                  
 
-    // Scalers
+    // Scalers. They run totally in the 50 MHz domain.
     wire pps_flag_clk;
     flag_sync u_clkA(.in_clkA(pps_flag),.clkA(sysclk),.clkB(CLK50),.out_clkB(pps_flag_clk));
     radiant_scalers #(.NUM_SCALERS(NUM_SCALERS)) u_scalers(.clk_i(CLK50),.rst_i(1'b0),
                                                   `WBS_CONNECT(scal, wb),                                                  
                                                   .pps_i(pps_flag_clk),
-                                                  .sys_clk_i( sysclk ),
                                                   .scal_i( scaler_inputs ));                                                  
     
     OBUFTDS u_sync(.I(sync),.O(SYNC_P),.OB(SYNC_N),.T(!sync_en));
