@@ -63,9 +63,11 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
     reg [1:0] scaler_update = 0;
     reg scaler_updating = 0;
     wire scaler_update_sysclk;
+    flag_sync u_update_sync(.in_clkA(scaler_update[1]),.clkA(clk_i),.out_clkB(scaler_update_sysclk),.clkB(sys_clk_i));
     wire scaler_timer_update;
     wire scaler_timer_write = (wb_cyc_i && wb_stb_i && wb_we_i && !wb_adr_i[11] && !wb_adr_i[7] && !wb_adr_i[2]);
     wire scaler_timer_reset = scaler_timer_write;
+    reg scaler_timer_writereg = 0;
     wire scalers_now = (scaler_use_pps) ? pps_i : scaler_timer_update;
     wire scaler_update_done_clk;
                 
@@ -75,10 +77,22 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
     reg [31:0] scaler_data_out = {32{1'b0}};
     wire [4:0] scaler_addr;        
 
-    wire [31:0] control_data = (wb_adr_i[2]) ? {32{1'b0}} : { scaler_use_pps, {31{1'b0}} };
-    wire [31:0] nonscaler_data = (wb_adr_i[7]) ? { {27{1'b0}}, scaler_addr } : control_data;
-    wire [31:0] data_out = (wb_adr_i[11]) ? scaler_data_out : nonscaler_data;
 
+    // period, in microsecond intervals
+    reg [30:0] scaler_period = 31'hF4240;
+    // There are 20 clocks per microsecond, so if we generate a divide by 5
+    // we can just use the scaler period upshifted by 2, which costs us nothing.
+    wire scaler_ce;
+    clk_div_ce #(.CLK_DIVIDE(5)) u_sce(.clk(clk_i),.ce(scaler_ce));
+    // 16, 30, 2 = 48
+    wire [47:0] scaler_period_in = { {16{1'b0}}, scaler_period, 2'b00 };
+    reg initial_load_done = 0;
+    reg initial_load = 0;
+    always @(posedge clk_i) begin
+        if (initial_load) initial_load_done <= 1;
+        initial_load <= scaler_ce && !initial_load_done;
+    end
+    
     reg global_scaler_reset = 1;
     reg [5:0] global_reset_delay = {6{1'b0}};
     always @(posedge sys_clk_i) begin
@@ -86,6 +100,10 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
         
         global_reset_delay <= { global_reset_delay[4:0], 1'b1 };
     end
+
+    wire [31:0] control_data = (wb_adr_i[2]) ? {32{1'b0}} : { scaler_use_pps, scaler_period };
+    wire [31:0] nonscaler_data = (wb_adr_i[7]) ? { {27{1'b0}}, scaler_addr } : control_data;
+    wire [31:0] data_out = (wb_adr_i[11]) ? scaler_data_out : nonscaler_data;
     
     generate
         genvar i,j;
@@ -93,7 +111,8 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
             if (i < NUM_DUAL_SCALERS) begin : SCR
                 wire [1:0] prescale_en = { (scaler_update_addr == 2*i+1) || global_scaler_reset, (scaler_update_addr == 2*i) || global_scaler_reset };
                 wire [47:0] scaler_value;
-                dual_prescaled_dsp_scalers #(.PIPELINE_INPUT("FALSE"))
+                localparam SDBG = (i == 0) ? "TRUE" : "FALSE";
+                dual_prescaled_dsp_scalers #(.PIPELINE_INPUT("FALSE"),.DEBUG(SDBG))
                     u_scal( .fast_clk_i(sys_clk_i),
                             .fast_rst_i(scaler_reset_sysclk || global_scaler_reset),
                             .prescale_en_i(prescale_en),
@@ -102,7 +121,8 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
                             .update_i(scaler_update_sysclk),
                             .value_o( scaler_value ),
                             .value_valid_o( scalers_valid[i] ));
-                assign dual_scaler_expanded[i] = { scaler_value[24 +: 16], scaler_value[0 +: 16] };
+                // Scalers peel off the *top* 16 bits of each.
+                assign dual_scaler_expanded[i] = { scaler_value[32 +: 16], scaler_value[8 +: 16] };
             end else begin : DUM
                 // e.g. if NUM_DUAL_SCALERS = 12, this is 8
                 assign dual_scaler_expanded[i] = dual_scaler_expanded[i % (NUM_DUAL_SCALERS_EXPANDED>>1)];
@@ -168,7 +188,9 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
     localparam [FSM_BITS-1:0] WAIT_RESET = 2;
     localparam [FSM_BITS-1:0] ACK = 3;
     reg [FSM_BITS-1:0] state = IDLE;
-    always @(posedge clk_i) begin    
+    always @(posedge clk_i) begin 
+        scaler_timer_writereg <= scaler_timer_write;
+       
         scaler_data_out <= dual_scaler_expanded[ scaler_addr[ 0 +: NUM_DUAL_SCALERS_ADDR_BITS ] ];
         
         if (rst_i) state <= IDLE;
@@ -203,6 +225,13 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
         
         if (scaler_timer_write && wb_sel_i[3]) scaler_use_pps <= wb_dat_i[31];        
         
+        if (scaler_timer_write) begin
+            if (wb_sel_i[0]) scaler_period[7:0] <= wb_dat_i[7:0];
+            if (wb_sel_i[1]) scaler_period[15:8] <= wb_dat_i[15:8];
+            if (wb_sel_i[2]) scaler_period[23:16] <= wb_dat_i[23:16];
+            if (wb_sel_i[3]) scaler_period[30:24] <= wb_dat_i[30:24];
+        end
+        
         if (wb_cyc_i && wb_stb_i && wb_we_i && !wb_adr_i[11] && !wb_adr_i[7] && wb_adr_i[2]) begin
             if (wb_sel_i[0]) scaler_prescale <= wb_dat_i[7:0];
             if (wb_sel_i[3]) scaler_update_addr <= wb_dat_i[24 +: NUM_SCALERS_ADDR_BITS];
@@ -213,9 +242,10 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
     // We can just shove in wb input
     // because internally there's only a 1 clock delay, and above there's
     // also a 1 clock delay in acking.
+    // Also, this is dirt slow, so we remap 
     dsp_counter_terminal_count #(.FIXED_TCOUNT("FALSE"),.RESET_TCOUNT_AT_RESET("FALSE"))
-        u_scaltimer( .clk_i(clk_i),.rst_i(rst_i),.count_i(1'b1),.tcount_i(wb_dat_i[0 +: 31]),
-                     .update_tcount_i(scaler_timer_write),.tcount_reached_o(scaler_timer_update) );
+        u_scaltimer( .clk_i(clk_i),.rst_i(rst_i),.count_i(scaler_ce),.tcount_i(scaler_period),
+                     .update_tcount_i(scaler_timer_writereg || initial_load),.tcount_reached_o(scaler_timer_update) );
 
 
     assign wb_ack_o = (state == ACK);
