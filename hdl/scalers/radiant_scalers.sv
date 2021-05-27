@@ -36,9 +36,7 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
         input rst_i,
         `WBS_NAMED_PORT(wb, 32, 16, 4)        
     );
-    
-    localparam DEBUG_ANY = "TRUE";
-    
+        
     localparam NUM_SCALERS_EVEN = (NUM_SCALERS % 2) ? NUM_SCALERS+1 : NUM_SCALERS;
     localparam NUM_SCALERS_ADDR_BITS = $clog2(NUM_SCALERS_EVEN);
     localparam NUM_SCALERS_EXPANDED = (1<<NUM_SCALERS_ADDR_BITS);
@@ -97,9 +95,9 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
         global_reset_delay <= { global_reset_delay[4:0], 1'b1 };
     end
 
-    // Mux the data.
+    // Mux the data. Scaler_addr needs to be upshifted so it represents the scaler number.
     wire [31:0] control_data = (wb_adr_i[2]) ? {32{1'b0}} : { scaler_use_pps, scaler_period };
-    wire [31:0] nonscaler_data = (wb_adr_i[7]) ? { {27{1'b0}}, scaler_addr } : control_data;
+    wire [31:0] nonscaler_data = (wb_adr_i[7]) ? { {26{1'b0}}, scaler_addr, 1'b0 } : control_data;
     wire [31:0] data_out = (wb_adr_i[11]) ? scaler_data_out : nonscaler_data;
     
     generate
@@ -111,27 +109,15 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
                 wire high_prescale_select = (this_dual_scaler && scaler_update_addr[0]) || global_scaler_reset;
                 wire [1:0] prescale_en = { high_prescale_select, low_prescale_select };
                 wire [47:0] scaler_value;
-                if (i == 0) begin : DBG
-                    dual_prescaled_dsp_scalers #(.PIPELINE_INPUT("FALSE"),.DEBUG(DEBUG_ANY))
-                        u_scal( .fast_clk_i(clk_i),
-                                .fast_rst_i(scaler_reset || global_scaler_reset),
-                                .prescale_en_i(prescale_en),
-                                .prescale_i({2{scaler_prescale}}),
-                                .count_i( { scal_in[2*i + 1], scal_in[2*i] } ),
-                                .update_i(scaler_update[1]),
-                                .value_o( scaler_value ),
-                                .value_valid_o( scalers_valid[i] ));
-                end else begin : NDBG
-                    dual_prescaled_dsp_scalers #(.PIPELINE_INPUT("FALSE"),.DEBUG("FALSE"))
-                        u_scal( .fast_clk_i(clk_i),
-                                .fast_rst_i(scaler_reset || global_scaler_reset),
-                                .prescale_en_i(prescale_en),
-                                .prescale_i({2{scaler_prescale}}),
-                                .count_i( { scal_in[2*i + 1], scal_in[2*i] } ),
-                                .update_i(scaler_update[1]),
-                                .value_o( scaler_value ),
-                                .value_valid_o( scalers_valid[i] ));
-                end
+                dual_prescaled_dsp_scalers #(.PIPELINE_INPUT("FALSE"))
+                    u_scal( .fast_clk_i(clk_i),
+                            .fast_rst_i(scaler_reset || global_scaler_reset),
+                            .prescale_en_i(prescale_en),
+                            .prescale_i({2{scaler_prescale}}),
+                            .count_i( { scal_in[2*i + 1], scal_in[2*i] } ),
+                            .update_i(scaler_update[1]),
+                            .value_o( scaler_value ),
+                            .value_valid_o( scalers_valid[i] ));
                 // Scalers peel off the *top* 16 bits of each.
                 assign dual_scaler_expanded[i] = { scaler_value[32 +: 16], scaler_value[8 +: 16] };
             end else begin : DUM
