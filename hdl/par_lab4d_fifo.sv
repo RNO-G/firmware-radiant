@@ -14,6 +14,10 @@ module par_lab4d_fifo #(
         input sys_clk_i,
         input [NUM_LAB4*DATA_BITS-1:0] lab_dat_i,
         input [NUM_LAB4-1:0] lab_wr_i,
+
+        // This is used by the trigger overlord.
+        input [11:0]    full_thresh_i,
+        output          full_o,
         
         input fifo_rst_i,
         output fifo_empty_o
@@ -60,6 +64,8 @@ module par_lab4d_fifo #(
 		endcase
 	end    
 
+    wire [NUM_LAB4-1:0] fifo_prog_full;
+    assign full_o = |fifo_prog_full;
     wire [NUM_LAB4-1:0] fifo_empty;
     assign fifo_empty_o = &fifo_empty;
     generate
@@ -70,6 +76,8 @@ module par_lab4d_fifo #(
             lab4d_fifo u_fifo(.wr_clk(sys_clk_i),.wr_en(lab_wr_i[i]),.din(lab_dat_i[DATA_BITS*i +: DATA_BITS]),
                               .rd_clk(clk_i),.rd_en(lab_read[i]),.dout(raw_data_out),
                               .empty(fifo_empty[i]),
+                              .prog_full_thresh( full_thresh_i ),
+                              .prog_full( fifo_prog_full[i] ),
                               .rst(fifo_rst_i));
             // reorder: the data comes out of the FIFO essentially big endian.
             // This ensures that if we dump the data out as a stream of bytes
