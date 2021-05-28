@@ -8,13 +8,14 @@ module pwm_wrap(
         output [23:0] THRESH_PWM
     );
     
+    assign wb_rty_o = 1'b0;
 
     // adapt to AXI
     // we're just going to ignore wb_stall, hopefully it's not a problem
     // the guy who did this adapter sadly had no clue about naming conventions
     
     // screw prots
-    wire [31:0] awaddr;
+    wire [8:0] awaddr;
     wire        awvalid;
     wire        awready;
     wire [31:0] wdata;
@@ -24,14 +25,53 @@ module pwm_wrap(
     wire [1:0]  bresp;
     wire        bvalid;
     wire        bready;
-    wire [31:0] araddr;
+    wire [8:0] araddr;
     wire        arvalid;
     wire        arready;
     wire [31:0] rdata;
     wire        rready;
     wire        rvalid;
     wire [1:0]  rresp;
+
+
+    wbm2axilite #(.C_AXI_ADDR_WIDTH(9))
+        u_axi_adapt( .i_clk(clk_i),
+                     .i_reset(rst_i),
+                     .i_wb_cyc(wb_cyc_i),
+                     .i_wb_stb(wb_stb_i),
+                     .i_wb_we(wb_we_i),
+                     // I.... have no idea WTF this is doing...
+                     .i_wb_addr(wb_adr_i[2 +: 7]),
+                     .i_wb_data(wb_dat_i),
+                     .i_wb_sel(wb_sel_i),
+                     .o_wb_stall(),
+                     .o_wb_ack(wb_ack_o),
+                     .o_wb_data(wb_dat_o),
+                     .o_wb_err(wb_err_o),
+                     
+                     .o_axi_awvalid(awvalid),
+                     .i_axi_awready(awready),
+                     .o_axi_awaddr(awaddr),
+                     
+                     .o_axi_wvalid(wvalid),
+                     .i_axi_wready(wready),
+                     .o_axi_wdata(wdata),
+                     .o_axi_wstrb(wstrb),
+                     
+                     .i_axi_bvalid(bvalid),
+                     .o_axi_bready(bready),
+                     .i_axi_bresp(bresp),
+                     
+                     .o_axi_arvalid(arvalid),
+                     .i_axi_arready(arready),
+                     .o_axi_araddr(araddr),
+                     
+                     .i_axi_rvalid(rvalid),
+                     .o_axi_rready(rready),
+                     .i_axi_rdata(rdata),
+                     .i_axi_rresp(rresp));
     
+/*    
     pwm_wbtoaxi u_axi_adapt(.s_wb_dat_w(wb_dat_i),
                             .s_wb_dat_r(wb_dat_o),
                             .s_wb_stb(wb_stb_i),
@@ -67,6 +107,7 @@ module pwm_wrap(
                             .m_axi4_lite_rresp(rresp),
                             .m_axi4_lite_rvalid(rvalid),
                             .m_axi4_lite_rready(rready));
+*/
     assign rresp = 2'b00;
     wire [23:0] pwm_out;
     wire [23:0] pwm_oeb;                            
