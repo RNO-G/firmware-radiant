@@ -26,6 +26,8 @@ module boardman_interface(
         input BM_RX,
         output BM_TX        
     );
+    parameter SIMULATION = "FALSE";
+    
     parameter DEBUG = `BOARDMAN_INTERFACE_DEBUG;
             
     parameter CLOCK_RATE = 100000000;
@@ -404,10 +406,48 @@ module boardman_interface(
                              state == READADDR2 || state == WRITEADDR0 || state == WRITEADDR1 ||
                              state == WRITEADDR2 || state == WRITELEN);
 
-    assign adr_o = address[21:2];
-    assign dat_o = data;
-    assign en_o = (state == WRITEEN) || (state == READCAPTURE);
-    assign wr_o = (state == WRITEEN);
-    assign wstrb_o = wstrb;
+    reg [21:0] simadr = {22{1'b0}};
+    reg [31:0] simdat = {32{1'b0}};
+    reg simen = 0;
+    reg simwr = 0;
+    reg [3:0] simwstrb = {4{1'b0}};
+
+    // synthesis translate off
+
+    task automatic BMWR(input [21:0] address, input [31:0] value);
+        begin
+            @(posedge clk); #1 simen = 1; simadr = address; simdat = value; simwstrb = 4'hF; simwr = 1; @(posedge clk);
+            while (!ack_i) @(posedge clk);
+            #1 simen = 0; simwr = 0;
+        end
+    endtask
     
+    task automatic BMRD(input [21:0] address, output [31:0] value);
+        begin
+            @(posedge clk); #1 simen = 1; @(posedge clk);
+            while (!ack_i) @(posedge clk);
+            value = dat_i;
+            #1 simen = 0;
+        end
+    endtask
+        
+
+    // synthesis translate on
+
+    generate
+        if (SIMULATION == "TRUE") begin : INTSIGS
+            assign adr_o = simadr[21:2];
+            assign dat_o = simdat;
+            assign en_o = simen;
+            assign wr_o = simwr;
+            assign wstrb_o = simwstrb;
+        end else begin : REAL
+            assign adr_o = address[21:2];
+            assign dat_o = data;
+            assign en_o = (state == WRITEEN) || (state == READCAPTURE);
+            assign wr_o = (state == WRITEEN);
+            assign wstrb_o = wstrb;
+        end                
+    endgenerate
+                
 endmodule
