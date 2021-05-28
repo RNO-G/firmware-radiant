@@ -75,16 +75,20 @@ module radiant_top( input SYS_CLK_P,
                     output F_LED
     );
 
+    wire main_reset = 1'b0;
+
     // drive virtual grounds
     assign CB_SCLK_N = 1'b0;
     assign CB_MOSI_N = 1'b0;
     assign CB_MISO_N = 1'b0;
     assign CB_CS_B_N = 1'b0;
 
+    parameter SIMULATION = "FALSE";
+
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
     parameter [3:0] VER_MINOR = 2;
-    parameter [7:0] VER_REV = 26;
+    parameter [7:0] VER_REV = 27;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
@@ -159,7 +163,7 @@ module radiant_top( input SYS_CLK_P,
     // it's always a 32-bit interface, the interface's low bits just generate the byte enables.
     assign bmc_adr_o[1:0] = 2'b00;
     wire [1:0] burst_size;
-    boardman_interface #(.CLOCK_RATE(50000000),.BAUD_RATE(1000000)) u_bmif(.clk(CLK50),.rst(1'b0),.BM_RX(BM_RX),.BM_TX(BM_TX),
+    boardman_interface #(.SIMULATION(SIMULATION),.CLOCK_RATE(50000000),.BAUD_RATE(1000000)) u_bmif(.clk(CLK50),.rst(1'b0),.BM_RX(BM_RX),.BM_TX(BM_TX),
                                                                           .adr_o(bmc_adr_o[21:2]),
                                                                           .en_o(bmc_stb_o),
                                                                           .wr_o(bmc_we_o),
@@ -193,7 +197,7 @@ module radiant_top( input SYS_CLK_P,
     wire pps_flag;
     wire sync_en;
     reg [24:0] counter = {25{1'b0}};
-    rad_id_ctrl #(.DEVICE(IDENT),.VERSION(DATEVERSION),.MONTIMING_POLARITY(CPLD_MT_POLARITY)) u_id(.clk_i(CLK50),.rst_i(1'b0),
+    rad_id_ctrl #(.DEVICE(IDENT),.VERSION(DATEVERSION),.MONTIMING_POLARITY(CPLD_MT_POLARITY)) u_id(.clk_i(CLK50),.rst_i(main_reset),
                      `WBS_CONNECT( rad_id_ctrl, wb ),
                      .sys_clk_in(sysclk_in),
                      .sys_clk_o(sysclk),
@@ -268,7 +272,7 @@ module radiant_top( input SYS_CLK_P,
     wire [9:0] readout_empty_size;
     wire [3:0] readout_prescale;
     wire readout_complete;
-    wire trigger_in;
+    wire trigger_in = 0;
     
     // ALL OF THIS is sysclk domain
     wire event_begin;
@@ -286,7 +290,7 @@ module radiant_top( input SYS_CLK_P,
                                    .sys_clk_div4_flag_i(sysclk_div4_flag),
                                    .sync_i(lab_sync),
                                    .wclk_i(wclk),
-                                   
+                                                                      
                                    .reset_wr_i(reset_wr),
                                    .invert_montiming_i(invert_montiming),
                                    
@@ -404,7 +408,7 @@ module radiant_top( input SYS_CLK_P,
     
     // hook up the calram
     wb_calram_v2 u_calram(.clk_i(CLK50),
-                       .rst_i(1'b0),
+                       .rst_i(main_reset),
                        `WBS_CONNECT(calram, wb),
                        .sys_clk_i(sysclk),
                        .lab_dat_i(lab_dat),
