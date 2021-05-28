@@ -7,3 +7,6 @@
 [submodule "verilog-library-barawn"]
 	path = verilog-library-barawn
 	url = https://github.com/barawn/verilog-library-barawn
+[submodule "wb2axip"]
+	path = wb2axip
+	url = https://github.com/ZipCPU/wb2axip
