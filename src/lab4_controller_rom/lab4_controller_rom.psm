@@ -217,8 +217,9 @@ readout_complete:
     ; We're done with this set of 8, but do we have more to process?
 	input	s0,	trigger_0
     test    s0, trigger_last_bit
+    ; This sets *Z* if the trigger last bit is NOT set.
     ; If the bit is not set, we DO NOT clear the in_readout bit
-    return  NZ
+    return  Z
     ; it WAS set, so clear it, which triggers event processing
     ; clear the in_readout bit
     load    s0, 00
