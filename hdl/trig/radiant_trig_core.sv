@@ -193,6 +193,9 @@ module radiant_trig_core #(parameter NUM_TRIG=1, parameter NUM_CH=24, parameter 
     assign trigger_regs_muxed = (NUM_TRIG>1) ? trigger_regs_expanded[wb_adr_i[4 +: NUM_TRIG_ADDR_BITS]][wb_adr_i[3:2]] : trigger_regs_expanded[0][wb_adr_i[3:2]];    
     assign wb_dat_o = wb_adr_i[8] ? trigger_regs_muxed : control_regs[wb_adr_i[3:2]];
     assign wb_ack_o = ack;    
+    assign wb_err_o = 1'b0;
+    assign wb_rty_o = 1'b0;
+    
     assign trig_en_o = trigout_en_trigclk;
     assign trigin_en_o = trigin_en;
     assign trig_window_o = trig_window;
