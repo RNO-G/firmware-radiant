@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wave_config>
+   <wave_state>
+   </wave_state>
+   <db_ref_list>
+      <db_ref path="radiant_tb_behav.wdb" id="1">
+         <top_modules>
+            <top_module name="glbl" />
+            <top_module name="radiant_tb" />
+            <top_module name="vpkg" />
+         </top_modules>
+      </db_ref>
+   </db_ref_list>
+   <zoom_setting>
+      <ZoomStartTime time="0fs"></ZoomStartTime>
+      <ZoomEndTime time="2000001fs"></ZoomEndTime>
+      <Cursor1Time time="2000000fs"></Cursor1Time>
+   </zoom_setting>
+   <column_width_setting>
+      <NameColumnWidth column_width="183"></NameColumnWidth>
+      <ValueColumnWidth column_width="103"></ValueColumnWidth>
+   </column_width_setting>
+   <WVObjectSize size="3" />
+   <wvobject fp_name="/radiant_tb/clk50" type="logic">
+      <obj_property name="ElementShortName">clk50</obj_property>
+      <obj_property name="ObjectShortName">clk50</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/clkin" type="logic">
+      <obj_property name="ElementShortName">clkin</obj_property>
+      <obj_property name="ObjectShortName">clkin</obj_property>
+   </wvobject>
+   <wvobject fp_name="group72" type="group">
+      <obj_property name="label">WISHBONE</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <obj_property name="isExpanded"></obj_property>
+      <wvobject fp_name="/radiant_tb/uut/u_bmif/adr_o" type="array">
+         <obj_property name="ElementShortName">adr_o[19:0]</obj_property>
+         <obj_property name="ObjectShortName">adr_o[19:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_bmif/dat_o" type="array">
+         <obj_property name="ElementShortName">dat_o[31:0]</obj_property>
+         <obj_property name="ObjectShortName">dat_o[31:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_bmif/dat_i" type="array">
+         <obj_property name="ElementShortName">dat_i[31:0]</obj_property>
+         <obj_property name="ObjectShortName">dat_i[31:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_bmif/en_o" type="logic">
+         <obj_property name="ElementShortName">en_o</obj_property>
+         <obj_property name="ObjectShortName">en_o</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_bmif/wr_o" type="logic">
+         <obj_property name="ElementShortName">wr_o</obj_property>
+         <obj_property name="ObjectShortName">wr_o</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_bmif/wstrb_o" type="array">
+         <obj_property name="ElementShortName">wstrb_o[3:0]</obj_property>
+         <obj_property name="ObjectShortName">wstrb_o[3:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_bmif/ack_i" type="logic">
+         <obj_property name="ElementShortName">ack_i</obj_property>
+         <obj_property name="ObjectShortName">ack_i</obj_property>
+      </wvobject>
+      <wvobject fp_name="vbus100" type="vbus">
+         <obj_property name="label">Write Group 0</obj_property>
+         <obj_property name="DisplayName">label</obj_property>
+         <wvobject fp_name="/radiant_tb/uut/WR[4]" type="logic">
+            <obj_property name="ElementShortName">[4]</obj_property>
+            <obj_property name="ObjectShortName">[4]</obj_property>
+         </wvobject>
+         <wvobject fp_name="/radiant_tb/uut/WR[3]" type="logic">
+            <obj_property name="ElementShortName">[3]</obj_property>
+            <obj_property name="ObjectShortName">[3]</obj_property>
+         </wvobject>
+         <wvobject fp_name="/radiant_tb/uut/WR[2]" type="logic">
+            <obj_property name="ElementShortName">[2]</obj_property>
+            <obj_property name="ObjectShortName">[2]</obj_property>
+         </wvobject>
+         <wvobject fp_name="/radiant_tb/uut/WR[1]" type="logic">
+            <obj_property name="ElementShortName">[1]</obj_property>
+            <obj_property name="ObjectShortName">[1]</obj_property>
+         </wvobject>
+         <wvobject fp_name="/radiant_tb/uut/WR[0]" type="logic">
+            <obj_property name="ElementShortName">[0]</obj_property>
+            <obj_property name="ObjectShortName">[0]</obj_property>
+         </wvobject>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_controller/u_trigger/trigger_write" type="logic">
+         <obj_property name="ElementShortName">trigger_write</obj_property>
+         <obj_property name="ObjectShortName">trigger_write</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_controller/u_trigger/triggering" type="logic">
+         <obj_property name="ElementShortName">triggering</obj_property>
+         <obj_property name="ObjectShortName">triggering</obj_property>
+      </wvobject>
+   </wvobject>
+</wave_config>
