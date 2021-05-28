@@ -54,6 +54,7 @@ module radiant_trig_top #(  parameter NUM_TRIG = 2,
     assign ctrl_we_o = wb_we_i;
     assign ctrl_adr_o = wb_adr_i[8:0];
     assign ctrl_dat_o = wb_dat_i;
+    assign ctrl_sel_o = wb_sel_i;
     
     // PWM space is 0x0200-0x03FF nominally. Right now shadowed above.
     `WB_DEFINE(pwm, 32, 32, 4);
