@@ -265,7 +265,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	// bits[23]    = write post trigger count
 	// bits[30:24] = trigger repeat count
 	// bits[31]    = write trigger repeat count
-	assign trigger_register = {{6{1'b0}},trigger_repeat,{5{1'b0}},post_trigger,force_trigger_count,trigger_empty,1'b0,trigger_last,trigger_address};
+	assign trigger_register = {{6{1'b0}},trigger_repeat,{5{1'b0}},post_trigger,force_trigger_count,trigger_empty,trigger_last,1'b0,trigger_address};
 
 
 	// Readout Register:
@@ -287,7 +287,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	reg readout_not_done_reg = 0;
 	
 	wire all_readout_done = (readout_not_done_reg && !readout_not_done);
-	flag_sync u_all_done_sync(.in_clkA(all_readout_done),.clkA(wb_clk_i),.out_clkB(event_done),.clkB(sys_clk_i));	
+	flag_sync u_all_done_sync(.in_clkA(all_readout_done),.clkA(clk_i),.out_clkB(event_done),.clkB(sys_clk_i));	
 	
 	reg readout_data_not_test_pattern = 0;
 	reg readout_fifo_reset = 0;
@@ -649,8 +649,11 @@ module lab4d_controller #(parameter NUM_LABS=24,
 														  .bram_enable(pbRomEnable),.in_port(pb_inport_mux),
 														  .out_port(pb_outport),.port_id(pb_port),
 														  .write_strobe(pb_write),.read_strobe(pb_read),
-														  .interrupt(1'b0), .sleep(1'b0),
-														  .reset(processor_reset),.clk(clk_i));
+														  .interrupt(1'b0), 
+														  .interrupt_ack(),
+														  .sleep(1'b0),
+														  .reset(1'b0),
+														  .clk(clk_i));
 
 	lab4_controller_rom rom(.address(pbAddress),.instruction(pbInstruction),
 											 .enable(pbRomEnable),
