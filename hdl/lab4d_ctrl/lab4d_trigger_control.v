@@ -41,6 +41,8 @@ module lab4d_trigger_control #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 		input start_i,
 		input stop_i,
 		output ready_o,
+		// this is just ready in sysclk
+		output running_o,
 		// Bit of status.
 		output [1:0] current_bank_o,
 		// Configuration interface
@@ -347,6 +349,8 @@ module lab4d_trigger_control #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 	assign trigger_debug_o[13] = stop_sysclk;
 	assign trigger_debug_o[14] = enable_next_bank;
 	assign trigger_debug_o[15] = trigger_will_repeat;
+
+    assign running_o = enabled_sysclk;
 
 	assign current_bank_o = cur_bank;
 	assign event_o = trigger_i || force_trigger_sysclk;
