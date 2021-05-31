@@ -311,6 +311,11 @@ set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM 1 PACKAGE_PIN M20} [get_ports {
 set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM 1 PACKAGE_PIN L20} [get_ports {DOE_N[23]}]
 
 
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM 1 PACKAGE_PIN U5} [get_ports TRIGIN_P]
+set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM 1 PACKAGE_PIN U6} [get_ports TRIGIN_N]
+set_property -dict {IOSTANDARD LVDS_25 PACKAGE_PIN T7} [get_ports TRIGOUT_P]
+set_property -dict {IOSTANDARD LVDS_25 PACKAGE_PIN T8} [get_ports TRIGOUT_N]
+
 set_property -dict {PACKAGE_PIN N18 IOSTANDARD LVCMOS25} [get_ports {SST_SEL[0]}]
 set_property -dict {PACKAGE_PIN G9 IOSTANDARD LVCMOS25} [get_ports {SST_SEL[1]}]
 
@@ -380,6 +385,10 @@ set_max_delay -datapath_only -to [get_clocks wclk] -from [get_clocks trigclk] 5.
 # cross clock from trigclk to clk50
 set_max_delay -datapath_only -from [get_clocks trigclk] -to [get_clocks clk50_clock] 20.000
 set_max_delay -datapath_only -to [get_clocks trigclk] -from [get_clocks clk50_clock] 20.000
+# cross clock from trigclk to sysclk 
+# Try to keep this one quick.
+set_max_delay -datapath_only -from [get_clocks sysclk] -to [get_clocks trigclk] 5.000
+set_max_delay -datapath_only -to [get_clocks sysclk] -from [get_clocks trigclk] 5.000
 
 
 set_property C_CLK_INPUT_FREQ_HZ 300000000 [get_debug_cores dbg_hub]
