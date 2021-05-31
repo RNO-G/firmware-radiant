@@ -48,6 +48,13 @@ module radiant_top( input SYS_CLK_P,
                     output SYNC_P,
                     output SYNC_N,
                     
+                    // Trigger INPUT/OUTPUT FINALLY
+                    input TRIGIN_P,
+                    input TRIGIN_N,
+                    
+                    output TRIGOUT_P,
+                    output TRIGOUT_N,
+                    
                     // not actually differential in this usage
                     // we just drive them to ground (on both sides) to maybe
                     // improve signal integrity and reserve differential usage
@@ -88,7 +95,7 @@ module radiant_top( input SYS_CLK_P,
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
     parameter [3:0] VER_MINOR = 2;
-    parameter [7:0] VER_REV = 27;
+    parameter [7:0] VER_REV = 28;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
@@ -97,24 +104,27 @@ module radiant_top( input SYS_CLK_P,
     parameter [15:0] FIRMWARE_DATE = {16{1'b0}};
     localparam [31:0] DATEVERSION = { FIRMWARE_DATE, FIRMWARE_VERSION };
 
-    localparam [23:0] WCLK_POLARITY =       24'b000101111111000100110011;
-    localparam [1:0] MONTIMING_POLARITY = 2'b11;
+    // These are parameters since simulation can overwrite them
+    // to avoid stupidity.
+    parameter [23:0] WCLK_POLARITY =       24'b000101111111000100110011;
+    parameter [1:0] MONTIMING_POLARITY = 2'b11;
+
     // TRIG goes negative: so to get a positive trigger, we put TRIG on the negative
     // side and THRESH on the positive side. Normally, TRIG > THRESH so it's
     // zero. If trig goes below thresh, then it's positive.
     // So POLARITY is 1 whenever TRIG is going into a P input.
-    localparam [23:0] TRIG_POLARITY =       24'b011011001001001010010110;
+    parameter [23:0] TRIG_POLARITY =       24'b011011001001001010010110;
 
     // this is the CPLD montiming polarity. We fix it here just to allow the paths to all be identical.
     // Probably unimportant, but whatever.
-    localparam [23:0] CPLD_MT_POLARITY =    24'b010011100001010011100001;
+    parameter [23:0] CPLD_MT_POLARITY =    24'b010011100001010011100001;
         
         
     // polarity of the DOE inputs        
-    localparam [23:0] DOE_POLARITY =        24'b001001111110000011111001;
+    parameter [23:0] DOE_POLARITY =        24'b001001111110000011111001;
     
     // polarity of the SRCLK outputs
-    localparam [1:0] SRCLK_POLARITY = 2'b00;
+    parameter [1:0] SRCLK_POLARITY = 2'b00;
         
     // sysclk coming in is 25 MHz.
     wire sysclk_in;
@@ -272,13 +282,14 @@ module radiant_top( input SYS_CLK_P,
     wire [9:0] readout_empty_size;
     wire [3:0] readout_prescale;
     wire readout_complete;
-    wire trigger_in = 0;
+    wire trigger_in;
     
     // ALL OF THIS is sysclk domain
     wire event_begin;
     wire event_done;
     wire dma_req;
     wire dma_rdy;
+    wire readout_running;
     
     lab4d_controller #(.NUM_LABS(24),.NUM_MONTIMING(2),.NUM_SCLK(2),.NUM_REGCLR(1),.NUM_RAMP(2),
                        .NUM_SHOUT(2),.NUM_WR(4),.WCLK_POLARITY(WCLK_POLARITY))    
@@ -315,6 +326,7 @@ module radiant_top( input SYS_CLK_P,
                                    .readout_counter_rst_o(readout_counter_rst),
                                    .readout_fifo_empty_i(readout_fifo_empty),
                                    .readout_empty_size_o(readout_empty_size),
+                                   .readout_running_o(readout_running),
                                    .prescale_o(readout_prescale),
                                    .complete_i(readout_complete),
                                    
@@ -420,7 +432,8 @@ module radiant_top( input SYS_CLK_P,
     
     wire event_fifo_reset;
     wire event_fifo_empty;
-
+    wire [11:0] readout_full_thresh;
+    wire [23:0] readout_full;
     par_lab4d_fifo #(.NUM_LAB4(24))
         u_fifo( .clk_i(CLK50),
                 .rst_i(1'b0),
@@ -429,7 +442,9 @@ module radiant_top( input SYS_CLK_P,
                 .lab_dat_i(labcal_dat),
                 .lab_wr_i(labcal_wr),
                 .fifo_empty_o(event_fifo_empty),
-                .fifo_rst_i(event_fifo_reset));
+                .fifo_rst_i(event_fifo_reset),
+                .full_thresh_i(readout_full_thresh),
+                .full_o(readout_full));
 
     // WHO THE HECK KNOWS RIGHT NOW
     wire [31:0] event_info = {32{1'b0}};
@@ -452,7 +467,6 @@ module radiant_top( input SYS_CLK_P,
                                                              
                                                              .event_i(event_begin),
                                                              .event_info_i(event_info),
-                                                             .event_done_i(event_done),                                                                                                                          
                                                              
                                                              .event_ready_o(dma_req),
                                                              .event_readout_ready_i(dma_rdy),
@@ -462,6 +476,18 @@ module radiant_top( input SYS_CLK_P,
                                                              
                                                              .pulse_o(pulse),
                                                              .scal_o(trig_scalers),
+                                                             
+                                                             .full_trig_o(trigger_in),
+                                                             // god what a naming mess
+                                                             .readout_done_i(event_done),
+                                                             .readout_full_i(readout_full),
+                                                             .readout_full_thresh_o(readout_full_thresh),
+                                                             .readout_running_i(readout_running),
+                                                             
+                                                             .TRIGIN_P(TRIGIN_P),
+                                                             .TRIGIN_N(TRIGIN_N),
+                                                             .TRIGOUT_P(TRIGOUT_P),
+                                                             .TRIGOUT_N(TRIGOUT_N),
                                                              
                                                              .TRIG(TRIG),
                                                              .THRESH(THRESH),

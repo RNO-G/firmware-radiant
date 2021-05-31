@@ -17,7 +17,7 @@ module par_lab4d_fifo #(
 
         // This is used by the trigger overlord.
         input [11:0]    full_thresh_i,
-        output          full_o,
+        output [NUM_LAB4-1:0] full_o,
         
         input fifo_rst_i,
         output fifo_empty_o
@@ -65,7 +65,7 @@ module par_lab4d_fifo #(
 	end    
 
     wire [NUM_LAB4-1:0] fifo_prog_full;
-    assign full_o = |fifo_prog_full;
+    assign full_o = fifo_prog_full;
     wire [NUM_LAB4-1:0] fifo_empty;
     assign fifo_empty_o = &fifo_empty;
     generate
