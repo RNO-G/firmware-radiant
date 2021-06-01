@@ -72,13 +72,20 @@ module radiant_tb;
                  .CB_CS_B_P(cs_b),
                  .MISO(1'b0));
     
+    reg [31:0] readdat;
+    
     initial begin
         #5000;
         // let's test the PWM core first
-        uut.u_bmif.BMWR('h30604, 'h00000000);
+        uut.u_bmif.BMWR('h30204, 'h00000000);
         #100;
-        uut.u_bmif.BMWR('h30700, 'd6000000);
+        uut.u_bmif.BMWR('h30300, 'd6000000);
         #100;
+        
+        // now test scaler prescales just to be sure
+        uut.u_bmif.BMWR('h40004, (0<<24) | (0));
+        #100;
+        
         // set trigger repeat to 1
         uut.u_bmif.BMWR('h10054, 'h81000000);
         #100;
