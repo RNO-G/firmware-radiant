@@ -126,7 +126,7 @@ module radiant_trigger_overlord
         if (enables[0] && readout_done_seen && !readout_full_i) just_soft_inhibit_waiting <= trigger_busy;
         else just_soft_inhibit_waiting <= 1'b0;
         
-        trigger_was_busy <= 1'b0;
+        trigger_was_busy <= trigger_busy;
 
         if (ext_trig_i && enables[1] && trigger_busy) dead_trigger_happened <= 1;
         else dead_trigger_happened <= 1'b0;
