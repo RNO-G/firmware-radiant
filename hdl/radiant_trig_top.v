@@ -59,8 +59,8 @@ module radiant_trig_top #(  parameter NUM_TRIG = 2,
     // Event control space is 0x0000 - 0x1FF. 
     `WB_DEFINE(ctrl, 32, 9, 4);
     wire ctrl_is_selected = (wb_adr_i[10:9] == 2'b00);
-    assign ctrl_cyc_o = wb_cyc_i && ctrl_is_selected;
-    assign ctrl_stb_o = wb_stb_i;
+    assign ctrl_cyc_o = wb_cyc_i;
+    assign ctrl_stb_o = wb_stb_i && ctrl_is_selected;
     assign ctrl_we_o = wb_we_i;
     assign ctrl_adr_o = wb_adr_i[8:0];
     assign ctrl_dat_o = wb_dat_i;
@@ -69,8 +69,8 @@ module radiant_trig_top #(  parameter NUM_TRIG = 2,
     // PWM space is 0x0200-0x03FF nominally. Right now shadowed above.
     `WB_DEFINE(pwm, 32, 32, 4);
     wire pwm_is_selected = (wb_adr_i[10:9] == 2'b01);
-    assign pwm_cyc_o = wb_cyc_i && pwm_is_selected;
-    assign pwm_stb_o = wb_stb_i;
+    assign pwm_cyc_o = wb_cyc_i;
+    assign pwm_stb_o = wb_stb_i && pwm_is_selected;
     assign pwm_we_o = wb_we_i;
     assign pwm_adr_o = { {23{1'b0}}, wb_adr_i[8:0] };
     assign pwm_dat_o = wb_dat_i;
@@ -79,8 +79,8 @@ module radiant_trig_top #(  parameter NUM_TRIG = 2,
     // OVERLORD space is 400-5FF. 
     `WB_DEFINE(overlord, 32, 32, 4);
     wire overlord_is_selected = (wb_adr_i[10:9] == 2'b10);
-    assign overlord_cyc_o = wb_cyc_i && overlord_is_selected;
-    assign overlord_stb_o = wb_stb_i;
+    assign overlord_cyc_o = wb_cyc_i;
+    assign overlord_stb_o = wb_stb_i && overlord_is_selected;
     assign overlord_we_o = wb_we_i;
     assign overlord_adr_o = { {23{1'b0}}, wb_adr_i[8:0] };
     assign overlord_dat_o = wb_dat_i;
@@ -89,8 +89,8 @@ module radiant_trig_top #(  parameter NUM_TRIG = 2,
     // and trigger control space is 600-7FF
     `WB_DEFINE(trig, 32, 32, 4);
     wire trig_is_selected = (wb_adr_i[10:9] == 2'b11);
-    assign trig_cyc_o = wb_cyc_i && trig_is_selected;
-    assign trig_stb_o = wb_stb_i;
+    assign trig_cyc_o = wb_cyc_i;
+    assign trig_stb_o = wb_stb_i && trig_is_selected;
     assign trig_we_o = wb_we_i;
     assign trig_adr_o = { {23{1'b0}}, wb_adr_i[8:0] };
     assign trig_dat_o = wb_dat_i;
