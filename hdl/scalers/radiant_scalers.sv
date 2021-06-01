@@ -49,8 +49,9 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
     wire [31:0] dual_scaler_expanded[NUM_DUAL_SCALERS_EXPANDED-1:0];
     wire scaler_reset;
     reg scaler_resetting = 0;
-    wire [NUM_DUAL_SCALERS-1:0] scaler_reset_done;
-
+    wire [NUM_DUAL_SCALERS-1:0] scaler_reset_complete;
+    wire scaler_reset_done = scaler_reset_complete[0];
+    
     reg [NUM_SCALERS_ADDR_BITS-1:0] scaler_update_addr = {NUM_SCALERS_ADDR_BITS{1'b0}};
     reg [7:0] scaler_prescale = {8{1'b0}};
                 
@@ -75,7 +76,7 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
     // There are 20 clocks per microsecond, so if we generate a divide by 5
     // we can just use the scaler period upshifted by 2, which costs us nothing.
     wire scaler_ce;
-    clk_div_ce #(.CLK_DIVIDE(5)) u_sce(.clk(clk_i),.ce(scaler_ce));
+    clk_div_ce #(.CLK_DIVIDE(4)) u_sce(.clk(clk_i),.ce(scaler_ce));
     // 16, 30, 2 = 48
     wire [47:0] scaler_period_in = { {16{1'b0}}, scaler_period, 2'b00 };
 
@@ -112,6 +113,7 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
                 dual_prescaled_dsp_scalers #(.PIPELINE_INPUT("FALSE"))
                     u_scal( .fast_clk_i(clk_i),
                             .fast_rst_i(scaler_reset || global_scaler_reset),
+                            .fast_rst_done_o(scaler_reset_complete[i]),
                             .prescale_en_i(prescale_en),
                             .prescale_i({2{scaler_prescale}}),
                             .count_i( { scal_in[2*i + 1], scal_in[2*i] } ),
@@ -244,8 +246,9 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
     // because internally there's only a 1 clock delay, and above there's
     // also a 1 clock delay in acking.
     // Also, this is dirt slow, so we remap 
+    wire [47:0] timer_tcount = { {16{1'b0}}, scaler_period };
     dsp_counter_terminal_count #(.FIXED_TCOUNT("FALSE"),.RESET_TCOUNT_AT_RESET("FALSE"))
-        u_scaltimer( .clk_i(clk_i),.rst_i(rst_i),.count_i(scaler_ce),.tcount_i(scaler_period),
+        u_scaltimer( .clk_i(clk_i),.rst_i(rst_i),.count_i(scaler_ce),.tcount_i(timer_tcount),
                      .update_tcount_i(scaler_timer_writereg || initial_load),.tcount_reached_o(scaler_timer_update) );
 
 
