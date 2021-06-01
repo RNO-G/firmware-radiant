@@ -13,16 +13,18 @@
    </db_ref_list>
    <zoom_setting>
       <ZoomStartTime time="0fs"></ZoomStartTime>
-      <ZoomEndTime time="2056000001fs"></ZoomEndTime>
-      <Cursor1Time time="5627170fs"></Cursor1Time>
+      <ZoomEndTime time="1113740fs"></ZoomEndTime>
+      <Cursor1Time time="1000000fs"></Cursor1Time>
    </zoom_setting>
    <column_width_setting>
       <NameColumnWidth column_width="183"></NameColumnWidth>
-      <ValueColumnWidth column_width="99"></ValueColumnWidth>
+      <ValueColumnWidth column_width="95"></ValueColumnWidth>
    </column_width_setting>
-   <WVObjectSize size="6" />
+   <WVObjectSize size="40" />
    <wave_markers>
       <marker time="135884850" label="" />
+      <marker time="101162070" label="" />
+      <marker time="120462170" label="" />
    </wave_markers>
    <wvobject fp_name="/radiant_tb/clk50" type="logic">
       <obj_property name="ElementShortName">clk50</obj_property>
@@ -64,39 +66,25 @@
       <obj_property name="ElementShortName">triggering</obj_property>
       <obj_property name="ObjectShortName">triggering</obj_property>
    </wvobject>
-   <wvobject fp_name="group72" type="group">
-      <obj_property name="label">WISHBONE</obj_property>
+   <wvobject fp_name="/radiant_tb/uut/u_scalers/u_scaltimer/count_o" type="array">
+      <obj_property name="ElementShortName">count_o[47:0]</obj_property>
+      <obj_property name="ObjectShortName">count_o[47:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_scalers/u_sce/ce" type="logic">
+      <obj_property name="ElementShortName">ce</obj_property>
+      <obj_property name="ObjectShortName">ce</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_scalers/u_scaltimer/tcount_i" type="array">
+      <obj_property name="ElementShortName">tcount_i[47:0]</obj_property>
+      <obj_property name="ObjectShortName">tcount_i[47:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_scalers/u_scaltimer/update_tcount_i" type="logic">
+      <obj_property name="ElementShortName">update_tcount_i</obj_property>
+      <obj_property name="ObjectShortName">update_tcount_i</obj_property>
+   </wvobject>
+   <wvobject fp_name="group133" type="group">
+      <obj_property name="label">LAB4 PicoBlaze</obj_property>
       <obj_property name="DisplayName">label</obj_property>
-      <obj_property name="isExpanded"></obj_property>
-      <wvobject fp_name="/radiant_tb/uut/u_bmif/adr_o" type="array">
-         <obj_property name="ElementShortName">adr_o[19:0]</obj_property>
-         <obj_property name="ObjectShortName">adr_o[19:0]</obj_property>
-      </wvobject>
-      <wvobject fp_name="/radiant_tb/uut/u_bmif/dat_o" type="array">
-         <obj_property name="ElementShortName">dat_o[31:0]</obj_property>
-         <obj_property name="ObjectShortName">dat_o[31:0]</obj_property>
-         <obj_property name="Radix">HEXRADIX</obj_property>
-      </wvobject>
-      <wvobject fp_name="/radiant_tb/uut/u_bmif/dat_i" type="array">
-         <obj_property name="ElementShortName">dat_i[31:0]</obj_property>
-         <obj_property name="ObjectShortName">dat_i[31:0]</obj_property>
-      </wvobject>
-      <wvobject fp_name="/radiant_tb/uut/u_bmif/en_o" type="logic">
-         <obj_property name="ElementShortName">en_o</obj_property>
-         <obj_property name="ObjectShortName">en_o</obj_property>
-      </wvobject>
-      <wvobject fp_name="/radiant_tb/uut/u_bmif/wr_o" type="logic">
-         <obj_property name="ElementShortName">wr_o</obj_property>
-         <obj_property name="ObjectShortName">wr_o</obj_property>
-      </wvobject>
-      <wvobject fp_name="/radiant_tb/uut/u_bmif/wstrb_o" type="array">
-         <obj_property name="ElementShortName">wstrb_o[3:0]</obj_property>
-         <obj_property name="ObjectShortName">wstrb_o[3:0]</obj_property>
-      </wvobject>
-      <wvobject fp_name="/radiant_tb/uut/u_bmif/ack_i" type="logic">
-         <obj_property name="ElementShortName">ack_i</obj_property>
-         <obj_property name="ObjectShortName">ack_i</obj_property>
-      </wvobject>
       <wvobject fp_name="/radiant_tb/uut/u_controller/pbAddress" type="array">
          <obj_property name="ElementShortName">pbAddress[11:0]</obj_property>
          <obj_property name="ObjectShortName">pbAddress[11:0]</obj_property>
@@ -129,34 +117,11 @@
          <obj_property name="ElementShortName">pb_write</obj_property>
          <obj_property name="ObjectShortName">pb_write</obj_property>
       </wvobject>
-      <wvobject fp_name="/radiant_tb/uut/u_controller/wb_dat_i" type="array">
-         <obj_property name="ElementShortName">wb_dat_i[31:0]</obj_property>
-         <obj_property name="ObjectShortName">wb_dat_i[31:0]</obj_property>
-      </wvobject>
-      <wvobject fp_name="/radiant_tb/uut/u_controller/wb_dat_o" type="array">
-         <obj_property name="ElementShortName">wb_dat_o[31:0]</obj_property>
-         <obj_property name="ObjectShortName">wb_dat_o[31:0]</obj_property>
-      </wvobject>
-      <wvobject fp_name="/radiant_tb/uut/u_controller/wb_err_o" type="logic">
-         <obj_property name="ElementShortName">wb_err_o</obj_property>
-         <obj_property name="ObjectShortName">wb_err_o</obj_property>
-      </wvobject>
-      <wvobject fp_name="/radiant_tb/uut/u_controller/wb_rty_o" type="logic">
-         <obj_property name="ElementShortName">wb_rty_o</obj_property>
-         <obj_property name="ObjectShortName">wb_rty_o</obj_property>
-      </wvobject>
-      <wvobject fp_name="/radiant_tb/uut/u_controller/wb_sel_i" type="array">
-         <obj_property name="ElementShortName">wb_sel_i[3:0]</obj_property>
-         <obj_property name="ObjectShortName">wb_sel_i[3:0]</obj_property>
-      </wvobject>
-      <wvobject fp_name="/radiant_tb/uut/u_controller/wb_stb_i" type="logic">
-         <obj_property name="ElementShortName">wb_stb_i</obj_property>
-         <obj_property name="ObjectShortName">wb_stb_i</obj_property>
-      </wvobject>
-      <wvobject fp_name="/radiant_tb/uut/u_controller/wb_we_i" type="logic">
-         <obj_property name="ElementShortName">wb_we_i</obj_property>
-         <obj_property name="ObjectShortName">wb_we_i</obj_property>
-      </wvobject>
+   </wvobject>
+   <wvobject fp_name="group134" type="group">
+      <obj_property name="label">Events</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <obj_property name="isExpanded"></obj_property>
       <wvobject fp_name="/radiant_tb/uut/u_controller/lab4_runmode" type="logic">
          <obj_property name="ElementShortName">lab4_runmode</obj_property>
          <obj_property name="ObjectShortName">lab4_runmode</obj_property>
@@ -193,6 +158,11 @@
          <obj_property name="ElementShortName">SS_INCR[1:0]</obj_property>
          <obj_property name="ObjectShortName">SS_INCR[1:0]</obj_property>
       </wvobject>
+   </wvobject>
+   <wvobject fp_name="group135" type="group">
+      <obj_property name="label">PWM</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <obj_property name="isExpanded"></obj_property>
       <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/u_pwm_core/inst/\PWM_LOOP[0].u_pwm /pwm_clk_i" type="logic">
          <obj_property name="ElementShortName">pwm_clk_i</obj_property>
          <obj_property name="ObjectShortName">pwm_clk_i</obj_property>
@@ -206,5 +176,147 @@
          <obj_property name="ElementShortName">THRESH_PWM[23:0]</obj_property>
          <obj_property name="ObjectShortName">THRESH_PWM[23:0]</obj_property>
       </wvobject>
+   </wvobject>
+   <wvobject fp_name="group72" type="group">
+      <obj_property name="label">WISHBONE</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <obj_property name="isExpanded"></obj_property>
+      <wvobject fp_name="/radiant_tb/uut/u_bmif/adr_o" type="array">
+         <obj_property name="ElementShortName">adr_o[19:0]</obj_property>
+         <obj_property name="ObjectShortName">adr_o[19:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_bmif/dat_o" type="array">
+         <obj_property name="ElementShortName">dat_o[31:0]</obj_property>
+         <obj_property name="ObjectShortName">dat_o[31:0]</obj_property>
+         <obj_property name="Radix">HEXRADIX</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_bmif/dat_i" type="array">
+         <obj_property name="ElementShortName">dat_i[31:0]</obj_property>
+         <obj_property name="ObjectShortName">dat_i[31:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_bmif/en_o" type="logic">
+         <obj_property name="ElementShortName">en_o</obj_property>
+         <obj_property name="ObjectShortName">en_o</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_bmif/wr_o" type="logic">
+         <obj_property name="ElementShortName">wr_o</obj_property>
+         <obj_property name="ObjectShortName">wr_o</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_bmif/wstrb_o" type="array">
+         <obj_property name="ElementShortName">wstrb_o[3:0]</obj_property>
+         <obj_property name="ObjectShortName">wstrb_o[3:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_bmif/ack_i" type="logic">
+         <obj_property name="ElementShortName">ack_i</obj_property>
+         <obj_property name="ObjectShortName">ack_i</obj_property>
+      </wvobject>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/wb_dat_o" type="array">
+      <obj_property name="ElementShortName">wb_dat_o[31:0]</obj_property>
+      <obj_property name="ObjectShortName">wb_dat_o[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/wb_dat_i" type="array">
+      <obj_property name="ElementShortName">wb_dat_i[31:0]</obj_property>
+      <obj_property name="ObjectShortName">wb_dat_i[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/wb_adr_i" type="array">
+      <obj_property name="ElementShortName">wb_adr_i[31:0]</obj_property>
+      <obj_property name="ObjectShortName">wb_adr_i[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/wb_cyc_i" type="logic">
+      <obj_property name="ElementShortName">wb_cyc_i</obj_property>
+      <obj_property name="ObjectShortName">wb_cyc_i</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/wb_we_i" type="logic">
+      <obj_property name="ElementShortName">wb_we_i</obj_property>
+      <obj_property name="ObjectShortName">wb_we_i</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/wb_stb_i" type="logic">
+      <obj_property name="ElementShortName">wb_stb_i</obj_property>
+      <obj_property name="ObjectShortName">wb_stb_i</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/wb_ack_o" type="logic">
+      <obj_property name="ElementShortName">wb_ack_o</obj_property>
+      <obj_property name="ObjectShortName">wb_ack_o</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/wb_rty_o" type="logic">
+      <obj_property name="ElementShortName">wb_rty_o</obj_property>
+      <obj_property name="ObjectShortName">wb_rty_o</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/wb_err_o" type="logic">
+      <obj_property name="ElementShortName">wb_err_o</obj_property>
+      <obj_property name="ObjectShortName">wb_err_o</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/wb_sel_i" type="array">
+      <obj_property name="ElementShortName">wb_sel_i[3:0]</obj_property>
+      <obj_property name="ObjectShortName">wb_sel_i[3:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/awaddr" type="array">
+      <obj_property name="ElementShortName">awaddr[8:0]</obj_property>
+      <obj_property name="ObjectShortName">awaddr[8:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/awvalid" type="logic">
+      <obj_property name="ElementShortName">awvalid</obj_property>
+      <obj_property name="ObjectShortName">awvalid</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/awready" type="logic">
+      <obj_property name="ElementShortName">awready</obj_property>
+      <obj_property name="ObjectShortName">awready</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/wdata" type="array">
+      <obj_property name="ElementShortName">wdata[31:0]</obj_property>
+      <obj_property name="ObjectShortName">wdata[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/wvalid" type="logic">
+      <obj_property name="ElementShortName">wvalid</obj_property>
+      <obj_property name="ObjectShortName">wvalid</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/wready" type="logic">
+      <obj_property name="ElementShortName">wready</obj_property>
+      <obj_property name="ObjectShortName">wready</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/wstrb" type="array">
+      <obj_property name="ElementShortName">wstrb[3:0]</obj_property>
+      <obj_property name="ObjectShortName">wstrb[3:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/bresp" type="array">
+      <obj_property name="ElementShortName">bresp[1:0]</obj_property>
+      <obj_property name="ObjectShortName">bresp[1:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/bvalid" type="logic">
+      <obj_property name="ElementShortName">bvalid</obj_property>
+      <obj_property name="ObjectShortName">bvalid</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/bready" type="logic">
+      <obj_property name="ElementShortName">bready</obj_property>
+      <obj_property name="ObjectShortName">bready</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/araddr" type="array">
+      <obj_property name="ElementShortName">araddr[8:0]</obj_property>
+      <obj_property name="ObjectShortName">araddr[8:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/arvalid" type="logic">
+      <obj_property name="ElementShortName">arvalid</obj_property>
+      <obj_property name="ObjectShortName">arvalid</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/arready" type="logic">
+      <obj_property name="ElementShortName">arready</obj_property>
+      <obj_property name="ObjectShortName">arready</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/rdata" type="array">
+      <obj_property name="ElementShortName">rdata[31:0]</obj_property>
+      <obj_property name="ObjectShortName">rdata[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/rready" type="logic">
+      <obj_property name="ElementShortName">rready</obj_property>
+      <obj_property name="ObjectShortName">rready</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/rvalid" type="logic">
+      <obj_property name="ElementShortName">rvalid</obj_property>
+      <obj_property name="ObjectShortName">rvalid</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_trig/u_wrap/rresp" type="array">
+      <obj_property name="ElementShortName">rresp[1:0]</obj_property>
+      <obj_property name="ObjectShortName">rresp[1:0]</obj_property>
    </wvobject>
 </wave_config>

@@ -73,7 +73,7 @@ module radiant_tb;
                  .MISO(1'b0));
     
     reg [31:0] readdat;
-    
+    integer i;    
     initial begin
         #5000;
         // let's test the PWM core first
@@ -105,12 +105,18 @@ module radiant_tb;
         // write DMA descriptor 0: 0x30100, length 4. increment
         uut.u_bmif.BMWR('h8080, ('h30100 >> 2) | (4 << 19) | (1 << 18));
         #100;
-        // write DMA descriptor 1: 0x20000, length 1024, no increment, final
-        uut.u_bmif.BMWR('h8080, ('h20000 >> 2) | (1024<<19) | (1<<31));
+        for (i=0;i<23;i=i+1) begin
+            // write DMA descriptor 1: 0x20000, length 1024, no increment, final
+            uut.u_bmif.BMWR('h8084+4*i, (('h20000+'h800*i) >> 2) | (1024<<19));
+            #100;
+        end
+        uut.u_bmif.BMWR('h8084+24*i, (('h20000+'h800*24) >> 2) | (1024<<19) | (1<<31));
         #100;
+        
+        
         // enable in event DMA mode
         uut.u_bmif.BMWR('h8000, 'h82000005);
-        #100;
+        #100;        
         
         // Enable the trigger inputs
         uut.u_bmif.BMWR('h30604, {24{1'b1}});
@@ -149,18 +155,25 @@ module radiant_tb;
         
         #1000;
         // I DUNNO TRY TRIGGERING
-        trig = 24'h1;
-        #10;
-        trig = 24'h0;
-        #10;
-        trig = 24'h2;
-        #10;
-        trig = 24'h0;
-        #10;
-        trig = 24'h4;
-        #10;
-        trig = 24'h0;
+        // try soft trigger first
+        uut.u_bmif.BMWR('h30404, 'h1);
         
+//        trig = 24'h1;
+//        #10;
+//        trig = 24'h0;
+//        #10;
+//        trig = 24'h2;
+//        #10;
+//        trig = 24'h0;
+//        #10;
+//        trig = 24'h4;
+//        #10;
+//        trig = 24'h0;
+        #100;
+        
+        uut.u_bmif.BMRD('h30404, readdat);
+        $display("readdat: %x", readdat);        
+                
         #2000000;
         // CPU clear
         uut.u_bmif.BMWR('h30404, 'h2);
