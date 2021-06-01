@@ -71,9 +71,9 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
     reg [31:0] scaler_data_out = {32{1'b0}};
     wire [4:0] scaler_addr;        
 
-    // period, in microsecond intervals
-    reg [30:0] scaler_period = 31'hF4240;
-    // There are 20 clocks per microsecond, so if we generate a divide by 5
+    // period, in 1 us intervals
+    reg [30:0] scaler_period = 31'd1000000;
+    // There are 20 clocks per microsecond, so if we generate a divide by 10
     // we can just use the scaler period upshifted by 2, which costs us nothing.
     wire scaler_ce;
     clk_div_ce #(.CLK_DIVIDE(4)) u_sce(.clk(clk_i),.ce(scaler_ce));
@@ -246,9 +246,8 @@ module radiant_scalers #(parameter NUM_SCALERS=32)(
     // because internally there's only a 1 clock delay, and above there's
     // also a 1 clock delay in acking.
     // Also, this is dirt slow, so we remap 
-    wire [47:0] timer_tcount = { {16{1'b0}}, scaler_period };
     dsp_counter_terminal_count #(.FIXED_TCOUNT("FALSE"),.RESET_TCOUNT_AT_RESET("FALSE"))
-        u_scaltimer( .clk_i(clk_i),.rst_i(rst_i),.count_i(scaler_ce),.tcount_i(timer_tcount),
+        u_scaltimer( .clk_i(clk_i),.rst_i(rst_i),.count_i(scaler_ce),.tcount_i(scaler_period_in),
                      .update_tcount_i(scaler_timer_writereg || initial_load),.tcount_reached_o(scaler_timer_update) );
 
 
