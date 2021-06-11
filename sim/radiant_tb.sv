@@ -44,6 +44,8 @@ module radiant_tb;
     
     reg [23:0] trig = {24{1'b0}};
 
+    reg pps = 0;
+
     reg sclk = 0;
     reg mosi = 0;
     reg cs_b = 1'b1;
@@ -64,7 +66,7 @@ module radiant_tb;
                  .SYNCMON(syncmon),
                  .TRIG(trig),
                  .THRESH(~trig),
-                 .PPS(1'b0),
+                 .PPS(pps),
                  .TRIGIN_P(1'b0),
                  .TRIGIN_N(1'b1),
                  .CB_SCLK_P(sclk),
@@ -76,6 +78,16 @@ module radiant_tb;
     integer i;    
     initial begin
         #5000;
+        // set holdoff supa-short
+        uut.u_bmif.BMWR('h00010, 'h1);
+        #1000;
+        //
+        // Test the external PPS
+        pps = 1;
+        #100;
+        pps = 0;
+        
+        
         // let's test the PWM core first
         uut.u_bmif.BMWR('h30204, 'h00000000);
         #100;
