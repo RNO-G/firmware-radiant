@@ -92,10 +92,12 @@ module radiant_top( input SYS_CLK_P,
 
     parameter SIMULATION = "FALSE";
 
+    parameter DUAL_BANK = "TRUE";
+
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
-    parameter [3:0] VER_MINOR = 2;
-    parameter [7:0] VER_REV = 30;
+    parameter [3:0] VER_MINOR = 3;
+    parameter [7:0] VER_REV = 0;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
@@ -292,7 +294,8 @@ module radiant_top( input SYS_CLK_P,
     wire readout_running;
     
     lab4d_controller #(.NUM_LABS(24),.NUM_MONTIMING(2),.NUM_SCLK(2),.NUM_REGCLR(1),.NUM_RAMP(2),
-                       .NUM_SHOUT(2),.NUM_WR(4),.WCLK_POLARITY(WCLK_POLARITY))    
+                       .NUM_SHOUT(2),.NUM_WR(4),.WCLK_POLARITY(WCLK_POLARITY),
+                       .DUAL_BANK(DUAL_BANK))    
                      u_controller( .clk_i(CLK50),
                                    .rst_i(1'b0),
                                    `WBS_CONNECT(l4_ctrl, wb),

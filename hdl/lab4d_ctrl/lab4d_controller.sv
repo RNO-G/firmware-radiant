@@ -20,7 +20,8 @@ module lab4d_controller #(parameter NUM_LABS=24,
                           parameter NUM_SHOUT=2,
                           parameter NUM_WR=4,
                           parameter WR_DELAY=3,
-                          parameter [NUM_LABS-1:0] WCLK_POLARITY={NUM_LABS{1'b0}})(
+                          parameter [NUM_LABS-1:0] WCLK_POLARITY={NUM_LABS{1'b0}},
+                          parameter DUAL_BANK="FALSE")(
 		input clk_i,
 		input rst_i,
 
@@ -574,7 +575,9 @@ module lab4d_controller #(parameter NUM_LABS=24,
 												.SIN(SIN),
 												.SCLK(SCLK),
 												.PCLK(PCLK));
-	lab4d_trigger_control #(.NUM_WR(NUM_WR),.WR_DELAY(WR_DELAY)) u_trigger(.clk_i(clk_i),
+    generate
+        if (DUAL_BANK == "TRUE") begin : RTC
+	       radiant_trigger_control_v2 #(.NUM_WR(NUM_WR),.WR_DELAY(WR_DELAY)) u_trigger(.clk_i(clk_i),
 											  .sys_clk_i(sys_clk_i),
 											  .sys_clk_div4_flag_i(sys_clk_div4_flag_i),
 											  .sync_i(sync_i),
@@ -604,6 +607,39 @@ module lab4d_controller #(parameter NUM_LABS=24,
 											  .trigger_debug_o(trigger_debug_o),
 											  
 											  .WR(WR));
+        end else begin : LTC        
+	       lab4d_trigger_control #(.NUM_WR(NUM_WR),.WR_DELAY(WR_DELAY)) u_trigger(.clk_i(clk_i),
+											  .sys_clk_i(sys_clk_i),
+											  .sys_clk_div4_flag_i(sys_clk_div4_flag_i),
+											  .sync_i(sync_i),
+											  .reset_wr_i(reset_wr_i),
+											  .start_i(trigger_start),
+											  .stop_i(trigger_stop),											  
+											  .ready_o(lab4_running),
+											  .running_o(readout_running_o),
+											  .current_bank_o(cur_bank),
+											  .trigger_i(trig_i),
+											  .force_trigger_i(force_trigger_readout),
+											  
+											  .event_o(event_o),
+											  
+											  .rst_i(trigger_reset),
+											  .post_trigger_i(post_trigger),
+											  .post_trigger_wr_i(post_trigger_wr),
+											  .trigger_repeat_i(trigger_repeat),
+											  .trigger_repeat_wr_i(trigger_repeat_wr),
+											  											  
+											  .trigger_empty_o(trigger_empty),
+											  .trigger_rd_i(trigger_read),
+											  .trigger_address_o(trigger_address),
+											  .trigger_last_o(trigger_last),
+											  .trigger_clear_i(all_readout_done),
+											  
+											  .trigger_debug_o(trigger_debug_o),
+											  
+											  .WR(WR));
+        end
+    endgenerate
 	wire dbg_ramp;
 	lab4d_wilkinson_ramp_v2 #(.NUM_LABS(NUM_LABS),.NUM_RAMP(NUM_RAMP),
 	                          .WCLK_POLARITY(WCLK_POLARITY),

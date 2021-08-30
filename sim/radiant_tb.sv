@@ -52,7 +52,7 @@ module radiant_tb;
     // Run in simulation mode (so we can use task writes)
     // and also set the polarity of the trigger to flat normal
     // (don't want to deal with it, unimportant)
-    radiant_top #(.SIMULATION("TRUE"),
+    radiant_top #(.SIMULATION("TRUE"),.DUAL_BANK("TRUE"),
                   .TRIG_POLARITY({24{1'b0}})) uut( .SYS_CLK_P(clkin),
                  .SYS_CLK_N(clkin_b),
                  .CLK50(clk50),
