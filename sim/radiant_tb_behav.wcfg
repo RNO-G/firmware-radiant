@@ -12,19 +12,20 @@
       </db_ref>
    </db_ref_list>
    <zoom_setting>
-      <ZoomStartTime time="0fs"></ZoomStartTime>
-      <ZoomEndTime time="1113740fs"></ZoomEndTime>
-      <Cursor1Time time="1000000fs"></Cursor1Time>
+      <ZoomStartTime time="19137750fs"></ZoomStartTime>
+      <ZoomEndTime time="20250751fs"></ZoomEndTime>
+      <Cursor1Time time="19614850fs"></Cursor1Time>
    </zoom_setting>
    <column_width_setting>
       <NameColumnWidth column_width="183"></NameColumnWidth>
-      <ValueColumnWidth column_width="95"></ValueColumnWidth>
+      <ValueColumnWidth column_width="142"></ValueColumnWidth>
    </column_width_setting>
-   <WVObjectSize size="40" />
+   <WVObjectSize size="53" />
    <wave_markers>
       <marker time="135884850" label="" />
       <marker time="101162070" label="" />
       <marker time="120462170" label="" />
+      <marker time="19904750" label="" />
    </wave_markers>
    <wvobject fp_name="/radiant_tb/clk50" type="logic">
       <obj_property name="ElementShortName">clk50</obj_property>
@@ -34,9 +35,26 @@
       <obj_property name="ElementShortName">clkin</obj_property>
       <obj_property name="ObjectShortName">clkin</obj_property>
    </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_controller/\RTC.u_trigger /do_repeat" type="logic">
+      <obj_property name="ElementShortName">do_repeat</obj_property>
+      <obj_property name="ObjectShortName">do_repeat</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_controller/\RTC.u_trigger /dual_bank_trigger_complete" type="logic">
+      <obj_property name="ElementShortName">dual_bank_trigger_complete</obj_property>
+      <obj_property name="ObjectShortName">dual_bank_trigger_complete</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_controller/\RTC.u_trigger /dual_bank_mode" type="logic">
+      <obj_property name="ElementShortName">dual_bank_mode</obj_property>
+      <obj_property name="ObjectShortName">dual_bank_mode</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_controller/\RTC.u_trigger /trigger_i" type="logic">
+      <obj_property name="ElementShortName">trigger_i</obj_property>
+      <obj_property name="ObjectShortName">trigger_i</obj_property>
+   </wvobject>
    <wvobject fp_name="vbus100" type="vbus">
       <obj_property name="label">Write Group 0</obj_property>
       <obj_property name="DisplayName">label</obj_property>
+      <obj_property name="isExpanded"></obj_property>
       <wvobject fp_name="/radiant_tb/uut/WR[4]" type="logic">
          <obj_property name="ElementShortName">[4]</obj_property>
          <obj_property name="ObjectShortName">[4]</obj_property>
@@ -58,13 +76,68 @@
          <obj_property name="ObjectShortName">[0]</obj_property>
       </wvobject>
    </wvobject>
-   <wvobject fp_name="/radiant_tb/uut/u_controller/u_trigger/trigger_write" type="logic">
+   <wvobject fp_name="vbus100" type="vbus">
+      <obj_property name="label">Virtual Write Address</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <obj_property name="Radix">UNSIGNEDDECRADIX</obj_property>
+      <obj_property name="isExpanded"></obj_property>
+      <wvobject fp_name="/radiant_tb/uut/WR[3]" type="logic">
+         <obj_property name="ElementShortName">[3]</obj_property>
+         <obj_property name="ObjectShortName">[3]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/WR[2]" type="logic">
+         <obj_property name="ElementShortName">[2]</obj_property>
+         <obj_property name="ObjectShortName">[2]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/WR[1]" type="logic">
+         <obj_property name="ElementShortName">[1]</obj_property>
+         <obj_property name="ObjectShortName">[1]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/WR[0]" type="logic">
+         <obj_property name="ElementShortName">[0]</obj_property>
+         <obj_property name="ObjectShortName">[0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/WR[4]" type="logic">
+         <obj_property name="ElementShortName">[4]</obj_property>
+         <obj_property name="ObjectShortName">[4]</obj_property>
+      </wvobject>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_controller/\RTC.u_trigger /trigger_write" type="logic">
       <obj_property name="ElementShortName">trigger_write</obj_property>
       <obj_property name="ObjectShortName">trigger_write</obj_property>
    </wvobject>
-   <wvobject fp_name="/radiant_tb/uut/u_controller/u_trigger/triggering" type="logic">
-      <obj_property name="ElementShortName">triggering</obj_property>
-      <obj_property name="ObjectShortName">triggering</obj_property>
+   <wvobject fp_name="/radiant_tb/uut/u_controller/\RTC.u_trigger /trigger_address" type="array">
+      <obj_property name="ElementShortName">trigger_address[4:0]</obj_property>
+      <obj_property name="ObjectShortName">trigger_address[4:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="vbus162" type="vbus">
+      <obj_property name="label">virtual address</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <obj_property name="Radix">UNSIGNEDDECRADIX</obj_property>
+      <wvobject fp_name="/radiant_tb/uut/u_controller/\RTC.u_trigger /trigger_address[3]" type="logic">
+         <obj_property name="ElementShortName">[3]</obj_property>
+         <obj_property name="ObjectShortName">[3]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_controller/\RTC.u_trigger /trigger_address[2]" type="logic">
+         <obj_property name="ElementShortName">[2]</obj_property>
+         <obj_property name="ObjectShortName">[2]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_controller/\RTC.u_trigger /trigger_address[1]" type="logic">
+         <obj_property name="ElementShortName">[1]</obj_property>
+         <obj_property name="ObjectShortName">[1]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_controller/\RTC.u_trigger /trigger_address[0]" type="logic">
+         <obj_property name="ElementShortName">[0]</obj_property>
+         <obj_property name="ObjectShortName">[0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/radiant_tb/uut/u_controller/\RTC.u_trigger /trigger_address[4]" type="logic">
+         <obj_property name="ElementShortName">[4]</obj_property>
+         <obj_property name="ObjectShortName">[4]</obj_property>
+      </wvobject>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_controller/\RTC.u_trigger /trigger_will_repeat" type="logic">
+      <obj_property name="ElementShortName">trigger_will_repeat</obj_property>
+      <obj_property name="ObjectShortName">trigger_will_repeat</obj_property>
    </wvobject>
    <wvobject fp_name="/radiant_tb/uut/u_scalers/u_scaltimer/count_o" type="array">
       <obj_property name="ElementShortName">count_o[47:0]</obj_property>
@@ -81,6 +154,30 @@
    <wvobject fp_name="/radiant_tb/uut/u_scalers/u_scaltimer/update_tcount_i" type="logic">
       <obj_property name="ElementShortName">update_tcount_i</obj_property>
       <obj_property name="ObjectShortName">update_tcount_i</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_id/u_pps/pps_i" type="logic">
+      <obj_property name="ElementShortName">pps_i</obj_property>
+      <obj_property name="ObjectShortName">pps_i</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_id/u_pps/pps_flag_o" type="logic">
+      <obj_property name="ElementShortName">pps_flag_o</obj_property>
+      <obj_property name="ObjectShortName">pps_flag_o</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_id/u_pps/ext_pps_holdoff" type="logic">
+      <obj_property name="ElementShortName">ext_pps_holdoff</obj_property>
+      <obj_property name="ObjectShortName">ext_pps_holdoff</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_id/u_pps/use_internal_pps" type="logic">
+      <obj_property name="ElementShortName">use_internal_pps</obj_property>
+      <obj_property name="ObjectShortName">use_internal_pps</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_id/u_pps/pps_flag" type="logic">
+      <obj_property name="ElementShortName">pps_flag</obj_property>
+      <obj_property name="ObjectShortName">pps_flag</obj_property>
+   </wvobject>
+   <wvobject fp_name="/radiant_tb/uut/u_id/u_pps/\HDSP.u_holdoff /\VAR.u_counter /P" type="array">
+      <obj_property name="ElementShortName">P[47:0]</obj_property>
+      <obj_property name="ObjectShortName">P[47:0]</obj_property>
    </wvobject>
    <wvobject fp_name="group133" type="group">
       <obj_property name="label">LAB4 PicoBlaze</obj_property>
