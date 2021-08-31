@@ -103,8 +103,9 @@ module radiant_trigger_overlord
     SRLC32E u_trigger_oneshot(.D(ext_trigger_flag),.A(ext_len_i),.CE(1'b1),.CLK(sys_clk_i),.Q(ext_trigger_clr));
         
     
-    reg [4:0] trig_type = {5{1'b0}};
+    reg [5:0] trig_type = {6{1'b0}};
     reg ext_trig_rereg = 0;
+    reg int_trig_rereg = 0;
     reg [1:0] int_trig_type_rereg = {2{1'b0}};
     reg pps_trig_rereg = 0;
     reg soft_trig_rereg = 0;
@@ -128,6 +129,7 @@ module radiant_trigger_overlord
         ext_trig_rereg <= ext_trig_i && enables[1];
         pps_trig_rereg <= pps_trigger;
         int_trig_type_rereg <= int_trig_type_i;
+        int_trig_rereg <= int_trig_i;
         soft_trig_rereg <= soft_trig_i;
         
         trigger_rereg <= trigger;
@@ -137,6 +139,7 @@ module radiant_trigger_overlord
             trig_type[2] <= ext_trig_rereg;
             trig_type[3] <= soft_trig_rereg;
             trig_type[4] <= pps_trig_rereg;
+            trig_type[5] <= int_trig_rereg;
         end
         
         if (enables[0] && (pps_trigger || soft_trig_i || int_trig_i || (ext_trig_i && enables[1])) && !trigger_busy) trigger <= 1;
