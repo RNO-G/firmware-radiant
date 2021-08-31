@@ -42,7 +42,8 @@ module radiant_trig_top #(  parameter NUM_TRIG = 2,
                             output [23:0] scal_o,
 
                             output full_trig_o,
-
+                            output [15:0] trig_info_o,
+                            
                             input TRIGIN_P,
                             input TRIGIN_N,
                             output TRIGOUT_P,
@@ -178,6 +179,10 @@ module radiant_trig_top #(  parameter NUM_TRIG = 2,
     wire [NUM_TRIG-1:0] trigger_flag_clk;
     // I dunno, check every 160 ns I guess.
     clk_div_ce #(.CLK_DIVIDE(8)) u_stuckgen(.clk(clk_i),.ce(stuck_period));
+
+    reg [NUM_TRIG-1:0] trig_type_trigclk = {NUM_TRIG{1'b0}};
+    reg [NUM_TRIG-1:0] trig_type_sysclk = {NUM_TRIG{1'b0}};
+    wire trig_clkcross_busy;
     generate
         genvar i, t;
         for (i=0;i<24;i=i+1) begin : INPUTS
@@ -199,6 +204,9 @@ module radiant_trig_top #(  parameter NUM_TRIG = 2,
                                             .scal_o(scal_o[i]));
         end
         for (t=0;t<NUM_TRIG;t=t+1) begin : TRIGGERS
+            // 0: trig_o goes high
+            // 1: trigger_any[0] goes high, trigger_any_flag goes high, trigger_rereg goes high
+            // 2: sync_toggle swaps so busy is high
             reg trigger_rereg = 0;
             // trigger takes trig_i, en_i, oneshot_i, threshold_i
             radiant_trigger u_trigger(.trig_i(trigger_inputs),
@@ -210,20 +218,27 @@ module radiant_trig_top #(  parameter NUM_TRIG = 2,
                                       .trigger_o( trig_o[t]));                                      
             always @(posedge trig_clk_i) begin : RR
                 trigger_rereg <= trig_o[t];
+                if (!trig_clkcross_busy) trig_type_trigclk[t] <= trigger_rereg;
             end
             assign trigger_flag[t] = (trig_o[t] && !trigger_rereg);
             flag_sync u_tsync(.in_clkA(trigger_flag[t]),.out_clkB(trigger_flag_clk[t]),.clkA(trig_clk_i),.clkB(clk_i));
         end
     endgenerate        
     reg [1:0] trigger_any = 0;
-    wire trigger_any_flag = trigger_any[1] && !trigger_any[0];
+    // WHY was this going on the *falling* edge?!?!?!?    
+//    wire trigger_any_flag = trigger_any[1] && !trigger_any[0];
+    wire trigger_any_flag = trigger_any[0] && !trigger_any[1];
     wire int_trigger_flag;    
-    reg ext_flag = 0;
+    reg ext_flag = 0;    
     
     always @(posedge trig_clk_i) begin
         trigger_any <= {trigger_any[0], |trig_o};
     end
-    flag_sync u_tanysync(.in_clkA(trigger_any_flag),.clkA(trig_clk_i),.out_clkB(int_trigger_flag),.clkB(sys_clk_i));
+    flag_sync u_tanysync(.in_clkA(trigger_any_flag),.clkA(trig_clk_i),.out_clkB(int_trigger_flag),.clkB(sys_clk_i),.busy_clkA(trig_clkcross_busy));
+    always @(posedge sys_clk_i) begin
+        if (int_trigger_flag)
+            trig_type_sysclk <= trig_type_trigclk;
+    end    
     
     // testing testing testing
     trig_debug_ila u_ila(.clk(clk_i),
@@ -260,12 +275,15 @@ module radiant_trig_top #(  parameter NUM_TRIG = 2,
                                         .sys_clk_i(sys_clk_i),
                                          .pps_i(pps_i),
                                          .trig_o(full_trig_o),
+                                         .trig_info_o(trig_info_o),
                                          .deadtrig_o(),
                                          .ext_trig_o(ext_out_b),
                                          .ext_trig_i(ext_flag_sysclk),
                                          .trig_done_o(trig_done),
                                          
                                          .int_trig_i(int_trigger_flag),
+                                         .int_trig_type_i(trig_type_sysclk),
+                                                                                  
                                          .readout_running_i(readout_running_i),
                                          .readout_done_i(readout_done_i),
                                          .readout_full_i(readout_full_i),

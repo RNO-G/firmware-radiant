@@ -201,8 +201,11 @@ module radiant_event_ctrl(
         ack <= wb_cyc_i && wb_stb_i;
     end
     
+    reg capture_event = 0;
             
     always @(posedge sys_clk_i) begin
+        capture_event <= event_i;
+    
         sync_enable_sysclk <= { sync_enable_sysclk[0], sync_enable_clk };
         
         sync <= pps_flag && sync_enable_sysclk;
@@ -217,19 +220,19 @@ module radiant_event_ctrl(
         else if (pps_flag) cur_sec_count <= cur_sec_count + 1;
     
         if (sync) cur_event_count <= {48{1'b0}};
-        else if (event_i) cur_event_count <= cur_event_count + 1;
+        else if (capture_event) cur_event_count <= cur_event_count + 1;
         
         if (sync) cur_sysclk_count <= {48{1'b0}};
         else cur_sysclk_count <= cur_sysclk_count + 1;
         
         if (sync) last_high_sec <= 0;
-        else if (event_i) last_high_sec <= cur_sec_count[32];
+        else if (capture_event) last_high_sec <= cur_sec_count[32];
         
         if (sync) last_high_evcount <= 0;
-        else if (event_i) last_high_evcount <= cur_event_count[32];
+        else if (capture_event) last_high_evcount <= cur_event_count[32];
         
         if (sync) last_high_syscount <= 0;
-        else if (event_i) last_high_syscount <= cur_sysclk_count[32];
+        else if (capture_event) last_high_syscount <= cur_sysclk_count[32];
         
         // add something here to turn this into a generic FIFO reset as well
         if (fifo_reset_sysclk) fifo_reset <= 1;
@@ -263,7 +266,7 @@ module radiant_event_ctrl(
         for (i=0;i<NUM_EVENT_DYNAMIC_DWORDS;i=i+1) begin : DYDW
             event_hdr_fifo u_event_sec_fifo(.rst(fifo_reset),.wr_clk(sys_clk_i),.rd_clk(clk_i),
                                             .din(event_dwords_write[i]),
-                                            .wr_en(event_i),
+                                            .wr_en(capture_event),
                                             // shift up because event_dwords_read[0] is the identifier and doesn't
                                             // need a FIFO.
                                             .empty(dydw_fifo_empty[i]),
@@ -272,7 +275,7 @@ module radiant_event_ctrl(
         end
         if (DEBUG == "TRUE") begin : ILA
             event_ila u_ila(.clk(sys_clk_i),
-                            .probe0(event_i),
+                            .probe0(capture_event),
                             .probe1(event_done_i),
                             .probe2(event_pending_count_sysclk),
                             .probe3(sync),

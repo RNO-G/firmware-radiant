@@ -30,10 +30,16 @@ module radiant_trigger_overlord
         input sys_clk_i,
         input pps_i,
         input int_trig_i,
+        input [1:0] int_trig_type_i,
         // this is a sys_clk flag, generated from a trig_clk capture of ext_trig's rising edge
         input ext_trig_i,
         input soft_trig_i,
         output trig_o,
+        // bit[1:0] int trig bit
+        // bit[2] ext trig bit
+        // bit[3] soft trig bit
+        // bit[4] pps trig bit
+        output [15:0] trig_info_o,
         output deadtrig_o,
         output ext_trig_o,
         output trig_done_o,
@@ -97,6 +103,14 @@ module radiant_trigger_overlord
     SRLC32E u_trigger_oneshot(.D(ext_trigger_flag),.A(ext_len_i),.CE(1'b1),.CLK(sys_clk_i),.Q(ext_trigger_clr));
         
     
+    reg [4:0] trig_type = {5{1'b0}};
+    reg ext_trig_rereg = 0;
+    reg [1:0] int_trig_type_rereg = {2{1'b0}};
+    reg pps_trig_rereg = 0;
+    reg soft_trig_rereg = 0;
+    
+    reg trigger_rereg = 0;
+    
     always @(posedge sys_clk_i) begin
         if (readout_running_i) enables <= en_i;
         else enables <= {3{1'b0}};
@@ -110,6 +124,20 @@ module radiant_trigger_overlord
         pps_trigger <= pps_i && enables[2];
         ext_pps_trigger <= pps_i && enables[2] && ext_en_i[2];
         ext_soft_trigger <= soft_trig_i && ext_en_i[1];
+    
+        ext_trig_rereg <= ext_trig_i && enables[1];
+        pps_trig_rereg <= pps_trigger;
+        int_trig_type_rereg <= int_trig_type_i;
+        soft_trig_rereg <= soft_trig_i;
+        
+        trigger_rereg <= trigger;
+        
+        if (trigger && !trigger_rereg) begin
+            trig_type[1:0] <= int_trig_type_rereg;
+            trig_type[2] <= ext_trig_rereg;
+            trig_type[3] <= soft_trig_rereg;
+            trig_type[4] <= pps_trig_rereg;
+        end
         
         if (enables[0] && (pps_trigger || soft_trig_i || int_trig_i || (ext_trig_i && enables[1])) && !trigger_busy) trigger <= 1;
         else trigger <= 0;        
@@ -142,4 +170,5 @@ module radiant_trigger_overlord
     assign soft_flow_waiting_o = just_soft_inhibit_waiting;
         
     assign enabled_o = enables;
+    assign trig_info_o = trig_type;
 endmodule

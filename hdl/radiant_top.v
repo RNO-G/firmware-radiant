@@ -97,7 +97,7 @@ module radiant_top( input SYS_CLK_P,
     parameter [31:0] IDENT = "RDNT";
     parameter [3:0] VER_MAJOR = 0;
     parameter [3:0] VER_MINOR = 3;
-    parameter [7:0] VER_REV = 0;
+    parameter [7:0] VER_REV = 1;
     localparam [15:0] FIRMWARE_VERSION = { VER_MAJOR, VER_MINOR, VER_REV };
     // gets pulled in by Tcl script.
     // bits[4:0] = day
@@ -450,7 +450,8 @@ module radiant_top( input SYS_CLK_P,
                 .full_o(readout_full));
 
     // WHO THE HECK KNOWS RIGHT NOW
-    wire [31:0] event_info = {32{1'b0}};
+    wire [15:0] trig_info;
+    wire [31:0] event_info = { {16{1'b0}}, trig_info };
 
     // this is a board-to-board sync
     wire sync;                                                           
@@ -481,6 +482,7 @@ module radiant_top( input SYS_CLK_P,
                                                              .scal_o(trig_scalers),
                                                              
                                                              .full_trig_o(trigger_in),
+                                                             .trig_info_o(trig_info),
                                                              // god what a naming mess
                                                              .readout_done_i(event_done),
                                                              .readout_full_i(readout_full),

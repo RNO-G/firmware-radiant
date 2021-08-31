@@ -21,8 +21,14 @@ module radiant_overlord_core #(parameter NUM_CH = 24)(
         output ext_trig_o,
         // and this goes to the event builder to push out a real event
         output trig_done_o,
+        
+        // this holds the trigger info
+        output [15:0] trig_info_o,
+        
         // Internal trigger flag
         input int_trig_i,
+        // Internal trigger types
+        input [1:0] int_trig_type_i,        
         // External trigger flag
         input ext_trig_i,
         // Indicates LAB4 controller is actually running.
@@ -159,9 +165,11 @@ module radiant_overlord_core #(parameter NUM_CH = 24)(
     radiant_trigger_overlord u_overlord(.sys_clk_i(sys_clk_i),
                                         .pps_i(pps_i),
                                         .int_trig_i(int_trig_i),
+                                        .int_trig_type_i(int_trig_type_i),
                                         .ext_trig_i(ext_trig_i),
                                         .soft_trig_i(overlord_soft_trig),
                                         .trig_o(trig_o),
+                                        .trig_info_o(trig_info_o),                                        
                                         .deadtrig_o(deadtrig_o),
                                         .ext_trig_o(ext_trig_o),
                                         .trig_done_o(trig_done_o),
