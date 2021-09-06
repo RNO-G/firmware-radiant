@@ -111,9 +111,11 @@ module radiant_event_ctrl(
     wire roll_sec = (cur_sysclk_count[32] ^ last_high_sec);
     wire roll_evcount = (cur_event_count[32] ^ last_high_evcount);
     wire roll_syscount = (cur_sysclk_count[32] ^ last_high_syscount);
+  
+    reg header_overflow = 0;
     
     // captured at event_i
-    wire [31:0] status_flags = { {28{1'b0}}, event_type_i, roll_syscount, roll_sec, roll_evcount };
+    wire [31:0] status_flags = { header_overflow, {27{1'b0}}, event_type_i, roll_syscount, roll_sec, roll_evcount };
 
     // Initial reset of the FIFOs. Works in sys_clk domain because that's likely to startup second.
     reg fifo_reset = 1;
@@ -160,7 +162,8 @@ module radiant_event_ctrl(
 
     wire type_fifo_empty;
     wire [NUM_EVENT_DYNAMIC_DWORDS-1:0] dydw_fifo_empty;    
-
+    wire [NUM_EVENT_DYNAMIC_DWORDS-1:0] dydw_fifo_full;
+        
     assign all_fifos_empty = (&dydw_fifo_empty) && event_fifo_empty_i;
     assign dmareq_fifo_empty = type_fifo_empty;
 
@@ -204,6 +207,9 @@ module radiant_event_ctrl(
     reg capture_event = 0;
             
     always @(posedge sys_clk_i) begin
+        if (fifo_reset) header_overflow <= 1'b0;
+        else if (|dydw_fifo_full && capture_event) header_overflow <= 1'b1;
+
         capture_event <= event_i;
     
         sync_enable_sysclk <= { sync_enable_sysclk[0], sync_enable_clk };
@@ -261,7 +267,7 @@ module radiant_event_ctrl(
     generate
         genvar i, d;
         for (d=0;d<NUM_EVENT_DWORDS;d=d+1) begin : DEN
-            assign event_dword_rden[d] = wb_cyc_i && wb_stb_i && !wb_we_i && wb_adr_i[8] && (wb_adr_i[2 +: 3] == d);
+            assign event_dword_rden[d] = wb_cyc_i && wb_stb_i && wb_ack_o && !wb_we_i && wb_adr_i[8] && (wb_adr_i[2 +: 3] == d);
         end
         for (i=0;i<NUM_EVENT_DYNAMIC_DWORDS;i=i+1) begin : DYDW
             event_hdr_fifo u_event_sec_fifo(.rst(fifo_reset),.wr_clk(sys_clk_i),.rd_clk(clk_i),
@@ -269,6 +275,7 @@ module radiant_event_ctrl(
                                             .wr_en(capture_event),
                                             // shift up because event_dwords_read[0] is the identifier and doesn't
                                             // need a FIFO.
+                                            .full(dydw_fifo_full[i]),
                                             .empty(dydw_fifo_empty[i]),
                                             .dout(event_dwords_read[i+(NUM_EVENT_DWORDS-NUM_EVENT_DYNAMIC_DWORDS)]),
                                             .rd_en(event_dword_rden[i+(NUM_EVENT_DWORDS-NUM_EVENT_DYNAMIC_DWORDS)]));
