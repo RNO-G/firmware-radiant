@@ -280,7 +280,7 @@ module radiant_event_ctrl(
             assign event_dword_rden[d] = wb_cyc_i && wb_stb_i && wb_ack_o && !wb_we_i && wb_adr_i[8] && (wb_adr_i[2 +: 3] == d);
         end
         for (i=0;i<NUM_EVENT_DYNAMIC_DWORDS;i=i+1) begin : DYDW
-            assign dydw_fifo_underflow[i] = event_dwords_read[i+(NUM_EVENT_DWORDS-NUM_EVENT_DYNAMIC_DWORDS)] && dydw_fifo_empty[i];
+            assign dydw_fifo_underflow[i] = event_dwords_rden[i+(NUM_EVENT_DWORDS-NUM_EVENT_DYNAMIC_DWORDS)] && dydw_fifo_empty[i];
             
             event_hdr_fifo u_event_sec_fifo(.rst(fifo_reset),.wr_clk(sys_clk_i),.rd_clk(clk_i),
                                             .din(event_dwords_write[i]),
