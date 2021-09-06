@@ -424,7 +424,7 @@ module boardman_interface(
     
     task automatic BMRD(input [21:0] address, output [31:0] value);
         begin
-            @(posedge clk); #1 simen = 1; @(posedge clk);
+            @(posedge clk); #1 simen = 1; simadr = address; @(posedge clk);
             while (!ack_i) @(posedge clk);
             value = dat_i;
             #1 simen = 0;
