@@ -113,9 +113,12 @@ module radiant_event_ctrl(
     wire roll_syscount = (cur_sysclk_count[32] ^ last_high_syscount);
   
     reg header_overflow = 0;
+    reg header_underflow_clk = 0;
+    (* ASYNC_REG = "TRUE" *)
+    reg [1:0] header_underflow_sysclk = {2{1'b0}};
     
     // captured at event_i
-    wire [31:0] status_flags = { header_overflow, {27{1'b0}}, event_type_i, roll_syscount, roll_sec, roll_evcount };
+    wire [31:0] status_flags = { header_overflow, header_underflow_sysclk[1], {26{1'b0}}, event_type_i, roll_syscount, roll_sec, roll_evcount };
 
     // Initial reset of the FIFOs. Works in sys_clk domain because that's likely to startup second.
     reg fifo_reset = 1;
@@ -164,6 +167,8 @@ module radiant_event_ctrl(
     wire [NUM_EVENT_DYNAMIC_DWORDS-1:0] dydw_fifo_empty;    
     wire [NUM_EVENT_DYNAMIC_DWORDS-1:0] dydw_fifo_full;
         
+    wire [NUM_EVENT_DYNAMIC_DWORDS-1:0] dydw_fifo_underflow;
+            
     assign all_fifos_empty = (&dydw_fifo_empty) && event_fifo_empty_i;
     assign dmareq_fifo_empty = type_fifo_empty;
 
@@ -191,6 +196,9 @@ module radiant_event_ctrl(
     
         fifo_reset_clk <= wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[8:2] == 7'h00) && ack && wb_dat_i[2];
     
+        if (fifo_reset_clk) header_underflow_clk <= 1'b0;
+        else if (|dydw_fifo_underflow) header_underflow_clk <= 1'b1;        
+    
         do_pps <= pps_flag_clk;
     
         // Capture the current second count for monitoring.
@@ -207,6 +215,8 @@ module radiant_event_ctrl(
     reg capture_event = 0;
             
     always @(posedge sys_clk_i) begin
+        header_underflow_sysclk <= { header_underflow_sysclk[0], header_underflow_clk };
+        
         if (fifo_reset) header_overflow <= 1'b0;
         else if (|dydw_fifo_full && capture_event) header_overflow <= 1'b1;
 
@@ -270,6 +280,8 @@ module radiant_event_ctrl(
             assign event_dword_rden[d] = wb_cyc_i && wb_stb_i && wb_ack_o && !wb_we_i && wb_adr_i[8] && (wb_adr_i[2 +: 3] == d);
         end
         for (i=0;i<NUM_EVENT_DYNAMIC_DWORDS;i=i+1) begin : DYDW
+            assign dydw_fifo_underflow[i] = event_dwords_read[i+(NUM_EVENT_DWORDS-NUM_EVENT_DYNAMIC_DWORDS)] && dydw_fifo_empty[i];
+            
             event_hdr_fifo u_event_sec_fifo(.rst(fifo_reset),.wr_clk(sys_clk_i),.rd_clk(clk_i),
                                             .din(event_dwords_write[i]),
                                             .wr_en(capture_event),
