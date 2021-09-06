@@ -86,7 +86,14 @@ module radiant_tb;
         pps = 1;
         #100;
         pps = 0;
+
+        // reset event FIFOs
+        uut.u_bmif.BMWR('h30000, 'h4);
+        #100;
         
+        // bork the underflow bit. It will reset when the FIFOs reset again below.
+        uut.u_bmif.BMRD('h30104, readdat);
+        #100;
         
         // let's test the PWM core first
         uut.u_bmif.BMWR('h30204, 'h00000000);
