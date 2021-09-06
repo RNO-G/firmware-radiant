@@ -112,6 +112,8 @@ module radiant_trigger_overlord
     
     reg trigger_rereg = 0;
     
+    reg trigger_really_busy = 0;
+        
     always @(posedge sys_clk_i) begin
         if (readout_running_i) enables <= en_i;
         else enables <= {3{1'b0}};
@@ -142,15 +144,21 @@ module radiant_trigger_overlord
             trig_type[5] <= int_trig_rereg;
         end
         
-        if (enables[0] && (pps_trigger || soft_trig_i || int_trig_i || (ext_trig_i && enables[1])) && !trigger_busy) trigger <= 1;
+        if (enables[0] && (pps_trigger || soft_trig_i || int_trig_i || (ext_trig_i && enables[1])) && !trigger_really_busy) trigger <= 1;
         else trigger <= 0;        
         
-        if (enables[0] && ext_en_i[0] && (ext_pps_trigger || ext_soft_trigger || int_trig_i) && !trigger_busy) ext_trigger <= EXT_LOGIC_TRUE;
+        if (enables[0] && ext_en_i[0] && (ext_pps_trigger || ext_soft_trigger || int_trig_i) && !trigger_really_busy) ext_trigger <= EXT_LOGIC_TRUE;
         else if (ext_trigger_clr || !ext_en_i[0] || !en_i[0]) ext_trigger <= ~EXT_LOGIC_TRUE;
 
-        if (enables[0] && ext_en_i[0] && (ext_pps_trigger || ext_soft_trigger || int_trig_i) && !trigger_busy) ext_trigger_flag <= 1;
+        if (enables[0] && ext_en_i[0] && (ext_pps_trigger || ext_soft_trigger || int_trig_i) && !trigger_really_busy) ext_trigger_flag <= 1;
         else ext_trigger_flag <= 1'b0;
                                 
+        // This deals with a screwup where trigger can go high for 2 clocks because trigger busy has to be low for 2 clocks to clear
+        // readout done seen. We don't just invert the logic on trigger busy because then trigger busy could stay high, not tripping
+        // trig_done.                                
+        if (trigger) trigger_really_busy <= 1'b1;
+        else if (!trigger_busy) trigger_really_busy <= 1'b0;
+
         if (!enables[0] || (readout_done_seen && !readout_full_i && !soft_inhibit)) trigger_busy <= 1'b0;
         else if (trigger) trigger_busy <= 1;
         
