@@ -73,6 +73,8 @@ module radiant_tb;
                  .CB_MOSI_P(mosi),
                  .CB_CS_B_P(cs_b),
                  .MISO(1'b0));
+    // Force the old buggy behavior.                 
+    defparam uut.u_trig.u_evctrl.FORCE_BUG = "TRUE";
     
     reg [31:0] readdat;
     integer i;    
@@ -196,7 +198,8 @@ module radiant_tb;
         #2000000;
         // CPU clear
         uut.u_bmif.BMWR('h30404, 'h2);
-        
+        // and immediate retrigger, testing
+        uut.u_bmif.BMWR('h30404, 'h1);
     end
 
 endmodule
