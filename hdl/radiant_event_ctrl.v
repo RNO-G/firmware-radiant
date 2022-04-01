@@ -47,6 +47,8 @@ module radiant_event_ctrl(
     );
 
     localparam DEBUG = `EVENTCTRL_DEBUG;
+
+    parameter FORCE_BUG = "FALSE";
         
     // just 4 control regs for now
     wire [31:0] control_regs[3:0];
@@ -277,7 +279,7 @@ module radiant_event_ctrl(
     generate
         genvar i, d;
         for (d=0;d<NUM_EVENT_DWORDS;d=d+1) begin : DEN
-            assign event_dword_rden[d] = wb_cyc_i && wb_stb_i && wb_ack_o && !wb_we_i && wb_adr_i[8] && (wb_adr_i[2 +: 3] == d);
+            assign event_dword_rden[d] = wb_cyc_i && wb_stb_i && (wb_ack_o || FORCE_BUG == "TRUE") && !wb_we_i && wb_adr_i[8] && (wb_adr_i[2 +: 3] == d);
         end
         for (i=0;i<NUM_EVENT_DYNAMIC_DWORDS;i=i+1) begin : DYDW
             assign dydw_fifo_underflow[i] = event_dword_rden[i+(NUM_EVENT_DWORDS-NUM_EVENT_DYNAMIC_DWORDS)] && dydw_fifo_empty[i];
