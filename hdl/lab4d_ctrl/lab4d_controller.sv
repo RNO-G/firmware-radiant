@@ -19,7 +19,8 @@ module lab4d_controller #(parameter NUM_LABS=24,
                           parameter NUM_RAMP=2,                          
                           parameter NUM_SHOUT=2,
                           parameter NUM_WR=4,
-                          parameter WR_DELAY=3,
+                          parameter WR_DELAY=3, 
+                          parameter WR_MAX_VARIABLE_DELAY = 15,
                           parameter [NUM_LABS-1:0] WCLK_POLARITY={NUM_LABS{1'b0}},
                           parameter DUAL_BANK="FALSE")(
 		input clk_i,
@@ -84,6 +85,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	localparam [7:0] SHIFT_PRESCALE_DEFAULT = 8'h01;
 	localparam [15:0] RAMP_TO_WILKINSON_DEFAULT = 16'h0000;
 	localparam [15:0] WCLK_STOP_COUNT_DEFAULT = 16'd1024;
+	localparam [15:0] WR_VARIABLE_DELAY_DEFAULT = 16'h3210;
 	// promote this to a parameter so it's visible
 	localparam LAB4_REG_WIDTH = `LAB4_REG_WIDTH;
     localparam LAB4_WR_WIDTH = `LAB4_WR_WIDTH;
@@ -120,7 +122,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	// 30: picoblaze control
 	// 31: picoblaze bram
 	
-	wire [31:0] register_mux[31:0];
+	wire [31:0] register_mux[32:0];
 	
 	wire [31:0] lab4_control_register;
 	wire [31:0] readout_prescale_register;
@@ -138,6 +140,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	wire [31:0] pb_bram_data;
 
 	reg [9:0] readout_empty_threshold = {10{1'b0}};
+	wire [31:0] wr_variable_delay_register;
 
 
 	assign register_mux[0] = lab4_control_register;
@@ -172,7 +175,8 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	assign register_mux[29] = phase_scanner_dat_o;
 	assign register_mux[30] = phase_scanner_dat_o;
 	assign register_mux[31] = pb_bram_data;
-	assign wb_dat_o = register_mux[wb_adr_i[6:2]];
+	assign register_mux[32] = wr_variable_delay_register;
+	assign wb_dat_o = wb_adr_i[7:2] <=33 ? register_mux[wb_adr_i[7:2]]:(32'd0);
 
 
 
@@ -213,6 +217,9 @@ module lab4d_controller #(parameter NUM_LABS=24,
 
 	reg [15:0] wclk_stop_count = WCLK_STOP_COUNT_DEFAULT;
 	assign wclk_stop_count_register = {{16{1'b0}},wclk_stop_count};
+	
+	reg [15:0] wr_variable_delay = WR_VARIABLE_DELAY_DEFAULT;
+	assign wr_variable_delay_register = {{16{1'b0}},wr_variable_delay};
 	
 	wire do_ramp;
 	reg ramp_pending = 0;
@@ -418,7 +425,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		
 		readout_not_done_reg <= readout_not_done;
 		
-		if (wb_cyc_i && wb_stb_i && wb_we_i && wb_adr_i[6:0] == 7'h58) begin
+		if (wb_cyc_i && wb_stb_i && wb_we_i && wb_adr_i[7:0] == 8'h58) begin
 			readout_data_not_test_pattern <= wb_dat_i[4];
 			readout_fifo_reset <= wb_dat_i[1];
 			readout_reset <= wb_dat_i[2];
@@ -427,7 +434,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 			readout_reset <= 0;
 		end
 		
-		if (wb_cyc_i && wb_stb_i && wb_we_i && wb_adr_i[6:0] == 7'h5C) begin
+		if (wb_cyc_i && wb_stb_i && wb_we_i && wb_adr_i[7:0] == 8'h5C) begin
 			readout_empty_threshold <= wb_dat_i[9:0];
 		end
 		
@@ -454,10 +461,10 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		if (pb_port[4:0] == 0 && pb_write) begin
 			lab4_runmode <= pb_outport[2];
 			lab4_control_reset_request <= pb_outport[0];
-		end else if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h00))
+		end else if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h00))
 			lab4_control_reset_request <= wb_dat_i[0];
 	
-		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h00)) begin
+		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h00)) begin
 			lab4_runmode_request <= wb_dat_i[1];
 			lab4_regclear <= wb_dat_i[16 +: NUM_REGCLR];
 			lab4_wilk_reset <= wb_dat_i[8];
@@ -466,28 +473,28 @@ module lab4d_controller #(parameter NUM_LABS=24,
 			lab4_wilk_reset <= 0;
 		end
 		
-		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h04)) begin
+		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h04)) begin
 		  shift_prescale <= wb_dat_i[7:0];
         end
-        if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h08)) begin
+        if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h08)) begin
           readout_prescale <= wb_dat_i[7:0];
         end
 				
-		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h18)) begin
+		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h18)) begin
 			lab4_user_write <= wb_dat_i[0 +: 24];
 			lab4_user_select <= wb_dat_i[24 +: LOG2_NUM_LABS];
 		end
 		
-		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h18))
+		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h18))
 			lab4_user_write_request <= wb_dat_i[31];
 		else if (pb_port[4:0] == 11 && pb_write) begin
 			lab4_user_write_request <= pb_outport[7];
 		end
 
-		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h0C || wb_adr_i[6:0] == 7'h10)) begin
+		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h0C || wb_adr_i[7:0] == 8'h10)) begin
 			update_wilkinson <= 1;
-			if (wb_adr_i[6:0] == 7'h0C) ramp_to_wilkinson <= wb_dat_i[15:0];
-			if (wb_adr_i[6:0] == 7'h10) wclk_stop_count <= wb_dat_i[15:0];
+			if (wb_adr_i[7:0] == 8'h0C) ramp_to_wilkinson <= wb_dat_i[15:0];
+			if (wb_adr_i[7:0] == 8'h10) wclk_stop_count <= wb_dat_i[15:0];
 		end else begin
 			update_wilkinson <= 0;
 		end
@@ -505,7 +512,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
         // [31:24] repeat count. Set bit 31 to actually update repeat count, bits[25:24] contain repeat count.
         //         Trigger repeat is at the *trigger* level - as in, it allows you to get multiple 1024-sample
         //         readouts per trigger.
-		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h54)) begin
+		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h54)) begin
 		    if (wb_sel_i[0]) begin
 //                trigger_clear <= wb_dat_i[0];
                 force_trigger <= wb_dat_i[1];
@@ -543,14 +550,16 @@ module lab4d_controller #(parameter NUM_LABS=24,
         if (!force_triggering || force_trigger) num_force_trigger <= {8{1'b0}};
         else if (!readout_not_done && readout_not_done_reg) num_force_trigger <= num_force_trigger + 1;
 
-		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h7C)) begin
+		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h7C)) begin
 			processor_reset <= wb_dat_i[31];
 			bram_we_enable <= wb_dat_i[30];
 			bram_data_reg <= wb_dat_i[0 +: 18];
 			bram_address_reg <= wb_dat_i[18 +: 10];
 		end
-		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[6:0] == 7'h7C)) bram_we <= 1;
+		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h7C)) bram_we <= 1;
 		else bram_we <= 0;
+		
+		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h80)) wr_variable_delay <= wb_dat_i[15:0];
 
         ack <= wb_cyc_i && wb_stb_i;
 	end
@@ -577,7 +586,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 												.PCLK(PCLK));
     generate
         if (DUAL_BANK == "TRUE") begin : RTC
-	       radiant_trigger_control_v2 #(.NUM_WR(NUM_WR),.WR_DELAY(WR_DELAY)) u_trigger(.clk_i(clk_i),
+	       radiant_trigger_control_v2 #(.NUM_WR(NUM_WR),.WR_DELAY(WR_DELAY),.WR_MAX_VARIABLE_DELAY(WR_MAX_VARIABLE_DELAY)) u_trigger(.clk_i(clk_i),
 											  .sys_clk_i(sys_clk_i),
 											  .sys_clk_div4_flag_i(sys_clk_div4_flag_i),
 											  .sync_i(sync_i),
@@ -606,6 +615,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 											  
 											  .trigger_debug_o(trigger_debug_o),
 											  
+											  .WR_variable_delay(wr_variable_delay),
 											  .WR(WR));
         end else begin : LTC        
 	       lab4d_trigger_control #(.NUM_WR(NUM_WR),.WR_DELAY(WR_DELAY)) u_trigger(.clk_i(clk_i),
@@ -664,7 +674,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	wire phase_scanner_err;
 	wire phase_scanner_rty;
 	surf5_phase_scanner_v2 #(.NUM_MONTIMING(NUM_MONTIMING)) u_phase_scanner(.clk_i(clk_i),.rst_i(rst_i),
-														.wb_cyc_i(wb_cyc_i),.wb_stb_i(wb_stb_i && wb_adr_i[6:5] == 2'b01),
+														.wb_cyc_i(wb_cyc_i),.wb_stb_i(wb_stb_i && wb_adr_i[7:5] == 3'b01),
 														.wb_adr_i(wb_adr_i[4:2]),
 														.wb_we_i(wb_we_i),.wb_dat_i(wb_dat_i),
 														.wb_dat_o(phase_scanner_dat_o),

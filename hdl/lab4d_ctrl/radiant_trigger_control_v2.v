@@ -25,7 +25,7 @@
 // (note that this only one way to deal with it: you could also just adjust the sys_clk_div4_flag_i
 //  back an equivalent amount to compensate for it, adding yet more offset to the syncOffset field
 //  in the PHAB automatch. Either or. I'm doing it this way for now)
-module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0)(
+module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, parameter WR_MAX_VARIABLE_DELAY = 15)(
 		input clk_i,
 		input sys_clk_i,
 		input sys_clk_div4_flag_i,
@@ -61,6 +61,9 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 		input trigger_clear_i,
         // ditch this, put a fixed ILA in here, we're in Vivado now		
 		output [15:0] trigger_debug_o,
+		
+		//WR interface, controls the window and bank information being sent to the LAB4Ds
+		input [4*NUM_WR-1:0] WR_variable_delay,
 		output [`LAB4_WR_WIDTH*NUM_WR-1:0] WR
     );
     
@@ -281,14 +284,14 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 	// This is an utter garbage way to do this, mind you, I should rethink this whole thing:
 	// but realistically the window's wide enough that we can adjust the post trigger counter for proper
 	// capture pretty easily.
-	wire [WR_DELAY:0] enable_next_window_delay;
-	wire [WR_DELAY:0] enable_next_bank_delay_wr3;
-	wire [WR_DELAY:0] enable_next_bank_delay_wr2;
-	wire [WR_DELAY:0] enabled_sysclk_delay;
-	wire [NUM_WINDOW_BITS:0] window_plus_one_delay[WR_DELAY:0];
+	wire [WR_DELAY+WR_MAX_VARIABLE_DELAY*4:0] enable_next_window_delay;
+	wire [WR_DELAY+WR_MAX_VARIABLE_DELAY*4:0] enable_next_bank_delay_wr3;
+	wire [WR_DELAY+WR_MAX_VARIABLE_DELAY*4:0] enable_next_bank_delay_wr2;
+	wire [WR_DELAY+WR_MAX_VARIABLE_DELAY*4:0] enabled_sysclk_delay;
+	wire [NUM_WINDOW_BITS:0] window_plus_one_delay[WR_DELAY+WR_MAX_VARIABLE_DELAY*4:0];
 
-	wire [NUM_BANK_BITS:0] next_bank_wr3_delay[WR_DELAY:0];
-    wire [NUM_BANK_BITS:0] next_bank_wr2_delay[WR_DELAY:0];
+	wire [NUM_BANK_BITS:0] next_bank_wr3_delay[WR_DELAY+WR_MAX_VARIABLE_DELAY*4:0];
+    wire [NUM_BANK_BITS:0] next_bank_wr2_delay[WR_DELAY+WR_MAX_VARIABLE_DELAY*4:0];
 
 	// connect the tails
 	assign enable_next_window_delay[0] = enable_next_window;
@@ -298,10 +301,11 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0)(
 	assign window_plus_one_delay[0] = window_plus_one;
 	assign next_bank_wr3_delay[0] = next_bank_wr3;
 	assign next_bank_wr2_delay[0] = next_bank_wr2;
+	
 	generate
 		genvar i,j;
         // world's goofiest defined shift register
-        for (j=0;j<WR_DELAY;j=j+1) begin : DL
+        for (j=0;j<(WR_DELAY+WR_MAX_VARIABLE_DELAY*4);j=j+1) begin : DL
             reg enable_next_window_reg = 0;
             assign enable_next_window_delay[j+1] = enable_next_window_reg;
             reg enable_next_bank_wr3_reg = 0;
@@ -335,30 +339,32 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0)(
                 
 		for (i=0;i<NUM_WR;i=i+1) begin : LAB
 			(* IOB = "TRUE" *)
-			FDRE u_wr4(.D(window_plus_one_delay[WR_DELAY][0]),
-						  .CE(enable_next_window_delay[WR_DELAY]),
+			wire [3:0] i_variable_delay = i; //WR_variable_delay[i*4+3:i*4];
+			
+			FDRE u_wr4(.D(window_plus_one_delay[WR_DELAY+4*i_variable_delay][0]),
+						  .CE(enable_next_window_delay[WR_DELAY+4*i_variable_delay]),
 						  .C(sys_clk_i),
-						  .R(!enabled_sysclk_delay[WR_DELAY]),
+						  .R(!enabled_sysclk_delay[WR_DELAY+4*i_variable_delay]),
 						  .Q(WR[5*i+4]));
-			FDRE u_wr3(.D(next_bank_wr3_delay[WR_DELAY]),
-						  .CE(enable_next_bank_delay_wr3[WR_DELAY]),
+			FDRE u_wr3(.D(next_bank_wr3_delay[WR_DELAY+4*i_variable_delay]),
+						  .CE(enable_next_bank_delay_wr3[WR_DELAY+4*i_variable_delay]),
 						  .C(sys_clk_i),
-						  .R(!enabled_sysclk_delay[WR_DELAY]),
+						  .R(!enabled_sysclk_delay[WR_DELAY+4*i_variable_delay]),
 						  .Q(WR[5*i+3]));
-			FDRE u_wr2(.D(next_bank_wr2_delay[WR_DELAY]),
-						  .CE(enable_next_bank_delay_wr2[WR_DELAY]),
+			FDRE u_wr2(.D(next_bank_wr2_delay[WR_DELAY+4*i_variable_delay]),
+						  .CE(enable_next_bank_delay_wr2[WR_DELAY+4*i_variable_delay]),
 						  .C(sys_clk_i),
-						  .R(!enabled_sysclk_delay[WR_DELAY]),
+						  .R(!enabled_sysclk_delay[WR_DELAY+4*i_variable_delay]),
 						  .Q(WR[5*i+2]));
-			FDRE u_wr1(.D(window_plus_one_delay[WR_DELAY][2]),
-						  .CE(enable_next_window_delay[WR_DELAY]),
+			FDRE u_wr1(.D(window_plus_one_delay[WR_DELAY+4*i_variable_delay][2]),
+						  .CE(enable_next_window_delay[WR_DELAY+4*i_variable_delay]),
 						  .C(sys_clk_i),
-						  .R(!enabled_sysclk_delay[WR_DELAY]),
+						  .R(!enabled_sysclk_delay[WR_DELAY+4*i_variable_delay]),
 						  .Q(WR[5*i+1]));
-			FDRE u_wr0(.D(window_plus_one_delay[WR_DELAY][1]),
-						  .CE(enable_next_window_delay[WR_DELAY]),
+			FDRE u_wr0(.D(window_plus_one_delay[WR_DELAY+4*i_variable_delay][1]),
+						  .CE(enable_next_window_delay[WR_DELAY+4*i_variable_delay]),
 						  .C(sys_clk_i),
-						  .R(!enabled_sysclk_delay[WR_DELAY]),
+						  .R(!enabled_sysclk_delay[WR_DELAY+4*i_variable_delay]),
 						  .Q(WR[5*i+0]));
 		end
 		if (DEBUG == "TRUE") begin : DBG
