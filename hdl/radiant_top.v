@@ -309,6 +309,7 @@ module radiant_top( input SYS_CLK_P,
                                    .invert_montiming_i(invert_montiming),
                                    
                                    .trig_i(trigger_in),
+                                   .trig_info(trig_info),
                                    .event_o(event_begin),
                                    .event_done_o(event_done),
                                    

@@ -20,7 +20,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
                           parameter NUM_SHOUT=2,
                           parameter NUM_WR=4,
                           parameter WR_DELAY=3, 
-                          parameter WR_MAX_VARIABLE_DELAY = 15,
+                          parameter WR_VARIABLE_DELAY_BITS = 7,
                           parameter [NUM_LABS-1:0] WCLK_POLARITY={NUM_LABS{1'b0}},
                           parameter DUAL_BANK="FALSE")(
 		input clk_i,
@@ -34,6 +34,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		input wclk_i,
 		
 		input trig_i,
+		input [15:0] trig_info,
 		output event_o,
 		output event_done_o,
 		
@@ -85,7 +86,8 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	localparam [7:0] SHIFT_PRESCALE_DEFAULT = 8'h01;
 	localparam [15:0] RAMP_TO_WILKINSON_DEFAULT = 16'h0000;
 	localparam [15:0] WCLK_STOP_COUNT_DEFAULT = 16'd1024;
-	localparam [15:0] WR_VARIABLE_DELAY_DEFAULT = 16'h3210;
+	localparam [31:0] WR_VARIABLE_DELAY_DEFAULT = 32'h0000;
+	localparam [3:0] WR_VARIABLE_DELAY_MAP_DEFAULT = 4'b0101;
 	// promote this to a parameter so it's visible
 	localparam LAB4_REG_WIDTH = `LAB4_REG_WIDTH;
     localparam LAB4_WR_WIDTH = `LAB4_WR_WIDTH;
@@ -122,7 +124,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	// 30: picoblaze control
 	// 31: picoblaze bram
 	
-	wire [31:0] register_mux[32:0];
+	wire [31:0] register_mux[35:0];
 	
 	wire [31:0] lab4_control_register;
 	wire [31:0] readout_prescale_register;
@@ -140,7 +142,10 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	wire [31:0] pb_bram_data;
 
 	reg [9:0] readout_empty_threshold = {10{1'b0}};
-	wire [31:0] wr_variable_delay_register;
+	wire [31:0] wr_variable_delay_trig_0_register;
+	wire [31:0] wr_variable_delay_trig_1_register;
+	wire [31:0] wr_variable_delay_map_0_register;
+	wire [31:0] wr_variable_delay_map_1_register;
 
 
 	assign register_mux[0] = lab4_control_register;
@@ -175,8 +180,11 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	assign register_mux[29] = phase_scanner_dat_o;
 	assign register_mux[30] = phase_scanner_dat_o;
 	assign register_mux[31] = pb_bram_data;
-	assign register_mux[32] = wr_variable_delay_register;
-	assign wb_dat_o = wb_adr_i[7:2] <=33 ? register_mux[wb_adr_i[7:2]]:(32'd0);
+	assign register_mux[32] = wr_variable_delay_trig_0_register;
+	assign register_mux[33] = wr_variable_delay_map_0_register;
+	assign register_mux[34] = wr_variable_delay_trig_1_register;
+	assign register_mux[35] = wr_variable_delay_map_1_register;
+	assign wb_dat_o = wb_adr_i[7:2] <=35 ? register_mux[wb_adr_i[7:2]]:(32'd0);
 
 
 
@@ -218,8 +226,17 @@ module lab4d_controller #(parameter NUM_LABS=24,
 	reg [15:0] wclk_stop_count = WCLK_STOP_COUNT_DEFAULT;
 	assign wclk_stop_count_register = {{16{1'b0}},wclk_stop_count};
 	
-	reg [15:0] wr_variable_delay = WR_VARIABLE_DELAY_DEFAULT;
-	assign wr_variable_delay_register = {{16{1'b0}},wr_variable_delay};
+	reg [31:0] wr_variable_delay_trig_0 = WR_VARIABLE_DELAY_DEFAULT;
+	assign wr_variable_delay_trig_0_register = {wr_variable_delay_trig_0};
+	
+	reg [31:0] wr_variable_delay_trig_1 = WR_VARIABLE_DELAY_DEFAULT;
+	assign wr_variable_delay_trig_1_register = {wr_variable_delay_trig_1};
+	
+	reg [3:0] wr_variable_delay_map_0 = WR_VARIABLE_DELAY_MAP_DEFAULT;
+	assign wr_variable_delay_map_0_register = {wr_variable_delay_map_0};
+	
+	reg [31:0] wr_variable_delay_map_1 = WR_VARIABLE_DELAY_MAP_DEFAULT;
+	assign wr_variable_delay_map_1_register = {wr_variable_delay_map_1};
 	
 	wire do_ramp;
 	reg ramp_pending = 0;
@@ -559,8 +576,11 @@ module lab4d_controller #(parameter NUM_LABS=24,
 		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h7C)) bram_we <= 1;
 		else bram_we <= 0;
 		
-		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h80)) wr_variable_delay <= wb_dat_i[15:0];
-
+		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h80)) wr_variable_delay_trig_0 <= wb_dat_i[WR_VARIABLE_DELAY_BITS-2:0];
+		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h84)) wr_variable_delay_map_0 <= wb_dat_i[3:0];
+		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h88)) wr_variable_delay_trig_1 <= wb_dat_i[WR_VARIABLE_DELAY_BITS-2:0];
+		if (wb_cyc_i && wb_stb_i && wb_we_i && (wb_adr_i[7:0] == 8'h8c)) wr_variable_delay_map_1 <= wb_dat_i[3:0];
+		
         ack <= wb_cyc_i && wb_stb_i;
 	end
 	always @(posedge sys_clk_i) begin
@@ -586,7 +606,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 												.PCLK(PCLK));
     generate
         if (DUAL_BANK == "TRUE") begin : RTC
-	       radiant_trigger_control_v2 #(.NUM_WR(NUM_WR),.WR_DELAY(WR_DELAY),.WR_MAX_VARIABLE_DELAY(WR_MAX_VARIABLE_DELAY)) u_trigger(.clk_i(clk_i),
+	       radiant_trigger_control_v2 #(.NUM_WR(NUM_WR),.WR_DELAY(WR_DELAY),.WR_VARIABLE_DELAY_BITS(WR_VARIABLE_DELAY_BITS)) u_trigger(.clk_i(clk_i),
 											  .sys_clk_i(sys_clk_i),
 											  .sys_clk_div4_flag_i(sys_clk_div4_flag_i),
 											  .sync_i(sync_i),
@@ -597,6 +617,7 @@ module lab4d_controller #(parameter NUM_LABS=24,
 											  .running_o(readout_running_o),
 											  .current_bank_o(cur_bank),
 											  .trigger_i(trig_i),
+											  .trig_info(trig_info),
 											  .force_trigger_i(force_trigger_readout),
 											  
 											  .event_o(event_o),
@@ -615,7 +636,11 @@ module lab4d_controller #(parameter NUM_LABS=24,
 											  
 											  .trigger_debug_o(trigger_debug_o),
 											  
-											  .WR_variable_delay(wr_variable_delay),
+											  .WR_variable_delay_trig_0(wr_variable_delay_trig_0),
+											  .WR_variable_delay_trig_1(wr_variable_delay_trig_1),
+											  .WR_variable_delay_trig_0_map(wr_variable_delay_map_0),
+											  .WR_variable_delay_trig_1_map(wr_variable_delay_map_1),
+
 											  .WR(WR));
         end else begin : LTC        
 	       lab4d_trigger_control #(.NUM_WR(NUM_WR),.WR_DELAY(WR_DELAY)) u_trigger(.clk_i(clk_i),
