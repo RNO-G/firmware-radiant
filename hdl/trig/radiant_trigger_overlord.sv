@@ -128,23 +128,32 @@ module radiant_trigger_overlord
         ext_pps_trigger <= pps_i && enables[2] && ext_en_i[2];
         ext_soft_trigger <= soft_trig_i && ext_en_i[1];
     
-        ext_trig_rereg <= ext_trig_i && enables[1];
-        pps_trig_rereg <= pps_trigger;
-        int_trig_type_rereg <= int_trig_type_i;
-        int_trig_rereg <= int_trig_i;
-        soft_trig_rereg <= soft_trig_i;
+    //unnessesary delay by 1 clock cycle
+//        ext_trig_rereg <= ext_trig_i && enables[1];
+//        pps_trig_rereg <= pps_trigger;
+//        int_trig_type_rereg <= int_trig_type_i;
+//        int_trig_rereg <= int_trig_i;
+//        soft_trig_rereg <= soft_trig_i;
         
-        trigger_rereg <= trigger;
+//        trigger_rereg <= trigger;
         
-        if (trigger && !trigger_rereg) begin
-            trig_type[1:0] <= int_trig_type_rereg;
-            trig_type[2] <= ext_trig_rereg;
-            trig_type[3] <= soft_trig_rereg;
-            trig_type[4] <= pps_trig_rereg;
-            trig_type[5] <= int_trig_rereg;
+//        if (trigger && !trigger_rereg) begin
+//            trig_type[1:0] <= int_trig_type_rereg;
+//            trig_type[2] <= ext_trig_rereg;
+//            trig_type[3] <= soft_trig_rereg;
+//            trig_type[4] <= pps_trig_rereg;
+//            trig_type[5] <= int_trig_rereg;
+//        end
+        
+        if (enables[0] && (pps_trigger || soft_trig_i || int_trig_i || (ext_trig_i && enables[1])) && !trigger_really_busy) 
+        begin
+            trigger <= 1;
+            trig_type[1:0] <= int_trig_type_i;
+            trig_type[2] <= ext_trig_i && enables[1];
+            trig_type[3] <= soft_trig_i;
+            trig_type[4] <= pps_trigger;
+            trig_type[5] <= int_trig_i;
         end
-        
-        if (enables[0] && (pps_trigger || soft_trig_i || int_trig_i || (ext_trig_i && enables[1])) && !trigger_really_busy) trigger <= 1;
         else trigger <= 0;        
         
         if (enables[0] && ext_en_i[0] && (ext_pps_trigger || ext_soft_trigger || int_trig_i) && !trigger_really_busy) ext_trigger <= EXT_LOGIC_TRUE;

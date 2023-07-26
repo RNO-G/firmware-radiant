@@ -111,7 +111,7 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
 	wire delayed_enable_next_bank_wr2;
 	
 	//delay causes trigger address to be overwritten before the delayed code is finished for long delays. Monitor if old address should be used.
-	reg use_old_trigger_address;
+	reg use_old_trigger_address = 1'b0;
 	
 	//used to map delay for current trigger
 	reg [31:0] i_WR_variable_delay = 32'h00000000;
@@ -247,9 +247,9 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
 		else if (trigger_is_done && !do_repeat) triggering <= 0;
 		
 		//change delay to match trigger type
-		if (trigger_i || force_trigger_sysclk) 
+		if (trigger_i || force_trigger_sysclk)
 		begin
-		  if(trig_info[0]==1 || ((trig_info[0]==0)&&(trig_info[1]==0)&&(trig_info[5]==1)))
+		  if(trig_info[0]==1)
 		  begin
 		      i_WR_variable_delay <= WR_variable_delay_trig_0;
 		      i_WR_variable_delay_map <= WR_variable_delay_trig_0_map;

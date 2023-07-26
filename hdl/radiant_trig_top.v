@@ -182,7 +182,6 @@ module radiant_trig_top #(  parameter NUM_TRIG = 2,
 
     reg [NUM_TRIG-1:0] trig_type_trigclk = {NUM_TRIG{1'b0}};
     reg [NUM_TRIG-1:0] trig_type_sysclk = {NUM_TRIG{1'b0}};
-    reg [NUM_TRIG-1:0] trig_type_sysclk_temp = {NUM_TRIG{1'b0}};
     wire trig_clkcross_busy;
     generate
         genvar i, t;
@@ -236,10 +235,13 @@ module radiant_trig_top #(  parameter NUM_TRIG = 2,
         trigger_any <= {trigger_any[0], |trig_o};
     end
     flag_sync u_tanysync(.in_clkA(trigger_any_flag),.clkA(trig_clk_i),.out_clkB(int_trigger_flag),.clkB(sys_clk_i),.busy_clkA(trig_clkcross_busy));
+    
+    //reg [NUM_TRIG-1:0] trig_type_sysclk_temp = {NUM_TRIG{1'b0}};
     always @(posedge sys_clk_i) begin
-        trig_type_sysclk_temp <= trig_type_trigclk;
-        if (int_trigger_flag)
-            trig_type_sysclk <= trig_type_sysclk_temp;
+        //trig_type_sysclk_temp <= trig_type_trigclk;
+        //if (int_trigger_flag)
+        //    trig_type_sysclk <= trig_type_sysclk_temp;
+        trig_type_sysclk <= trig_type_trigclk;
     end    
     
     // testing testing testing
