@@ -236,11 +236,9 @@ module radiant_trig_top #(  parameter NUM_TRIG = 2,
     end
     flag_sync u_tanysync(.in_clkA(trigger_any_flag),.clkA(trig_clk_i),.out_clkB(int_trigger_flag),.clkB(sys_clk_i),.busy_clkA(trig_clkcross_busy));
     
-    //reg [NUM_TRIG-1:0] trig_type_sysclk_temp = {NUM_TRIG{1'b0}};
+    //trig_type_sysclk will be synchronized in the radiant trigger overlord, so any synchronization here adds delay
+    //this code ensures that trig_type_sysclk will be the correct value for the duration of the clock cycle where int_trigger_flag is high
     always @(posedge sys_clk_i) begin
-        //trig_type_sysclk_temp <= trig_type_trigclk;
-        //if (int_trigger_flag)
-        //    trig_type_sysclk <= trig_type_sysclk_temp;
         trig_type_sysclk <= trig_type_trigclk;
     end    
     

@@ -25,6 +25,11 @@
 // (note that this only one way to deal with it: you could also just adjust the sys_clk_div4_flag_i
 //  back an equivalent amount to compensate for it, adding yet more offset to the syncOffset field
 //  in the PHAB automatch. Either or. I'm doing it this way for now)
+//
+// Michael Betts updated - 7/31/2023
+// Added a second processing path to allow a seperate delayed trigger to be created and sent out to a subset of Lab4ds. 
+// this delayed trigger can be assigned to any subset of the 4 output WR blocks, and can be assigned seperately based
+// on the trigger source - currently rf0 and rf1.
 module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, parameter WR_VARIABLE_DELAY_BITS = 7)(
 		input clk_i,
 		input sys_clk_i,
@@ -48,6 +53,7 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
 		input trigger_repeat_wr_i,
 		
 		// Triggering interface
+		//trig_info is 6 bits [rfo,rf1,ext,soft,pps,rfo|rf1]
 		input trigger_i,
 		input [15:0] trig_info,
 		input force_trigger_i,
@@ -63,11 +69,14 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
         // ditch this, put a fixed ILA in here, we're in Vivado now		
 		output [15:0] trigger_debug_o,
 		
-		//WR interface, controls the window and bank information being sent to the LAB4Ds
+		//delay settings for the rf0 and rf1 triggers. 
+		//Delay holds the number of sys_clk_div_4 pulses to wait for the delayed path.
+		//delay_map holds a bit mapping of which of the 4 WR paths are delayed.
 		input [31:0] WR_variable_delay_trig_0,
 		input [31:0] WR_variable_delay_trig_1,
 		input [3:0] WR_variable_delay_trig_0_map,
 		input [3:0] WR_variable_delay_trig_1_map,
+		//WR interface, controls the window and bank information being sent to the LAB4Ds
 		output [`LAB4_WR_WIDTH*NUM_WR-1:0] WR
     );
     
@@ -113,7 +122,7 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
 	//delay causes trigger address to be overwritten before the delayed code is finished for long delays. Monitor if old address should be used.
 	reg use_old_trigger_address = 1'b0;
 	
-	//used to map delay for current trigger
+	//used to hold delay settings for current trigger
 	reg [31:0] i_WR_variable_delay = 32'h00000000;
 	reg [3:0] i_WR_variable_delay_map = 4'b0000;
 	
@@ -246,7 +255,7 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
 		if (trigger_i || force_trigger_sysclk) triggering <= 1;
 		else if (trigger_is_done && !do_repeat) triggering <= 0;
 		
-		//change delay to match trigger type
+		//change delay to match trigger type, and update required variables
 		if (trigger_i || force_trigger_sysclk)
 		begin
 		  if(trig_info[0]==1)
@@ -274,8 +283,11 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
 		
 		// Capture address when we transition. Trigger address indicates LAST window.
 		// This crap is hardcoded.
+		//address is to specify data from LAB4ds during readout 
 		if (triggering && trigger_is_done)
 		begin 
+		    //holds delayed address for situation in which trigger address gets overwritten
+		    // while the previous trigger address is still needed for delayed logic. 
 		    last_trigger_address <= trigger_address;
 			trigger_address <= {window[0],bank1_bit_hack,bank[0],window[2:1]};
 	   end
@@ -358,6 +370,8 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
 		if (trigger_write) bank_full_counter <= bank_full_counter + 1;
 		else if (trigger_clear_sysclk) bank_full_counter <= bank_full_counter - 1;
 		
+		//If the delayed trigger is sufficiently delayed the non-delayed trigger can overwrite the address before it is read. In this situation
+		//we must store and use the old address.
 		use_old_trigger_address = delayed_triggering && delayed_do_repeat && (i_WR_variable_delay>7);
 
 	end
@@ -487,6 +501,8 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
                 
 		for (i=0;i<NUM_WR;i=i+1) begin : LAB
 			(* IOB = "TRUE" *)
+			//maps the bank and window variables to WR variable to be transferred to the LAB4ds.
+			//i_WR_variable_delay is used to decide if a path should use the delayed path or not
 			
 			FDRE u_wr4(.D((i_WR_variable_delay_map[i])?(delayed_window_plus_one_delay[WR_DELAY][0]):(window_plus_one_delay[WR_DELAY][0])),
 						  .CE(enable_next_window_delay[WR_DELAY]),
