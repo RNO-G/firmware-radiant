@@ -122,10 +122,8 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
 	//delay causes trigger address to be overwritten before the delayed code is finished for long delays. Monitor if old address should be used.
 	reg use_old_trigger_address = 1'b0;
 	
-	//used to hold delay settings for current trigger
-	reg [31:0] i_WR_variable_delay = 32'h00000000;
-	reg [3:0] i_WR_variable_delay_map = 4'b0000;
 	
+		
 	reg [NUM_BANK_BITS-1:0] bank_full_counter = {NUM_BANK_BITS{1'b0}};
 	
 	reg [NUM_WINDOW_BITS-1:0] window = {NUM_WINDOW_BITS{1'b0}};
@@ -138,9 +136,8 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
 	reg [NUM_WINDOW_BITS-1:0] post_trigger_counter = {NUM_WINDOW_BITS{1'b0}};
 	reg [NUM_WINDOW_BITS-1:0] post_trigger_limit = {NUM_WINDOW_BITS{1'b0}};
 	
-	reg [WR_VARIABLE_DELAY_BITS-1:0] delayed_post_trigger_counter = {(WR_VARIABLE_DELAY_BITS){1'b0}};
-	reg [WR_VARIABLE_DELAY_BITS-1:0] delayed_post_trigger_limit = {(WR_VARIABLE_DELAY_BITS){1'b0}};
-	
+		
+
 	reg reset_post_trigger = 0;
 	reg delayed_reset_post_trigger = 0;
 	
@@ -196,9 +193,33 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
 	// Hold whether or not we're about to repeat.
 	reg trigger_will_repeat = 0;
 	
+		//used to hold delay settings for current trigger
+	wire [31:0] i_WR_variable_delay;
+	wire [31:0] i_trig_info_delay;
+	reg [31:0] i_WR_variable_delay_held;
+	wire [3:0] i_WR_variable_delay_map;
+	wire [31:0] i_trig_info_delay_map;
+	reg [3:0] i_WR_variable_delay_map_held;
+	
+	assign i_WR_variable_delay = ((trigger_i||force_trigger_sysclk)&&(!triggering)&&(!delayed_triggering))?(i_trig_info_delay):(i_WR_variable_delay_held);
+	assign i_trig_info_delay = (trig_info[0]==1)?(WR_variable_delay_trig_0):((trig_info[1]==1)?(WR_variable_delay_trig_1):(0));
+	assign i_WR_variable_delay_map = ((trigger_i||force_trigger_sysclk)&&(!triggering)&&(!delayed_triggering))?(i_trig_info_delay_map):(i_WR_variable_delay_map_held);
+	assign i_trig_info_delay_map = (trig_info[0]==1)?(WR_variable_delay_trig_0_map):((trig_info[1]==1)?(WR_variable_delay_trig_1_map):(0));
+	
+	always @(posedge sys_clk_i) begin
+	  i_WR_variable_delay_held = i_WR_variable_delay;
+	  i_WR_variable_delay_map_held = i_WR_variable_delay_map;
+	end
+	
+	reg [WR_VARIABLE_DELAY_BITS-1:0] delayed_post_trigger_counter = {(WR_VARIABLE_DELAY_BITS){1'b0}};
+	reg delayed_post_trigger_repeated;
+	reg [NUM_WINDOW_BITS-1:0] delayed_post_trigger_base = {NUM_WINDOW_BITS{1'b0}};
+	wire [WR_VARIABLE_DELAY_BITS-1:0] delayed_post_trigger_limit = delayed_post_trigger_repeated?(7):(delayed_post_trigger_base+i_WR_variable_delay);
+	
+	
 	wire delayed_trigger_is_done = (delayed_post_trigger_counter == delayed_post_trigger_limit && sys_clk_div4_flag_i);
 	// This is also for readability. Indicates the trigger will be done on the next cycle.
-	wire delayed_trigger_will_be_done = (delayed_post_trigger_counter == delayed_post_trigger_limit && pre_sys_clk_div4_flag);
+	wire delayed_trigger_will_be_done =  (delayed_post_trigger_counter == delayed_post_trigger_limit) && pre_sys_clk_div4_flag;
 	// Hold whether or not we're about to repeat.
 	reg delayed_trigger_will_repeat = 0;
 	
@@ -208,6 +229,7 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
 	// But in that time, the bank has *swapped*, so... invert it.
 	wire bank1_bit_hack = (dual_bank_mode) ? bank[1] ^ dual_bank_trigger_complete : bank[1];
 	wire delayed_bank1_bit_hack = (dual_bank_mode) ? delayed_bank[1] ^ delayed_dual_bank_trigger_complete : delayed_bank[1];
+
 	
 	always @(posedge sys_clk_i) begin
 		if (sys_clk_div4_flag_i) sys_clk_counter <= {2{1'b0}};
@@ -252,33 +274,10 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
 		end
 		
 		// If we get a trigger, set to triggering state. Once we hit the post-trigger limit, exit that state.
-		if (trigger_i || force_trigger_sysclk) triggering <= 1;
+		if ((trigger_i || force_trigger_sysclk)&&(!triggering)&&(!delayed_triggering)) triggering <= 1;
 		else if (trigger_is_done && !do_repeat) triggering <= 0;
-		
-		//change delay to match trigger type, and update required variables
-		if (trigger_i || force_trigger_sysclk)
-		begin
-		  if(trig_info[0]==1)
-		  begin
-		      i_WR_variable_delay <= WR_variable_delay_trig_0;
-		      i_WR_variable_delay_map <= WR_variable_delay_trig_0_map;
-		      delayed_post_trigger_limit <= post_trigger_limit+WR_variable_delay_trig_0;
-		  end
-		  else if(trig_info[1]==1)
-		  begin
-		      i_WR_variable_delay <= WR_variable_delay_trig_1;
-		      i_WR_variable_delay_map <= WR_variable_delay_trig_1_map;
-		      delayed_post_trigger_limit <= post_trigger_limit+WR_variable_delay_trig_1;
-		  end
-		  else
-		  begin
-		      i_WR_variable_delay <= 0;
-		      i_WR_variable_delay_map <= 0;
-		      delayed_post_trigger_limit <= post_trigger_limit;
-		  end
-		end
 
-		if (trigger_i || force_trigger_sysclk) delayed_triggering <= 1;
+		if ((trigger_i || force_trigger_sysclk)&&(!triggering)&&(!delayed_triggering)) delayed_triggering <= 1;
 		else if (delayed_trigger_is_done && !delayed_do_repeat) delayed_triggering <= 0;
 		
 		// Capture address when we transition. Trigger address indicates LAST window.
@@ -324,23 +323,27 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
 		else if (sys_clk_div4_flag_i) delayed_post_trigger_counter <= delayed_post_trigger_counter + 1;
 
 		// Grab the limit from the control interface.
-		if (post_trigger_wr_sysclk || reset_post_trigger) post_trigger_limit <= post_trigger_i;		
+		if (post_trigger_wr_sysclk || reset_post_trigger) 
+		begin
+		  post_trigger_limit <= post_trigger_i;
+		  delayed_post_trigger_base <= post_trigger_i;
+		end		
 		else if (triggering && do_repeat) post_trigger_limit <= 7;
 		
-		if (post_trigger_wr_sysclk || delayed_reset_post_trigger) delayed_post_trigger_limit <= post_trigger_i+i_WR_variable_delay;//+variable_delay_i;		
-		else if (delayed_triggering && delayed_do_repeat) delayed_post_trigger_limit <= 7;
+		if (delayed_reset_post_trigger) delayed_post_trigger_repeated <= 0;//+variable_delay_i;		
+		else if (delayed_triggering && delayed_do_repeat) delayed_post_trigger_repeated <= 1;
 
 		if (trigger_repeat_wr_sysclk)
 		  dual_bank_mode <= trigger_repeat_i[0];
 
 		// this indicates that the trigger should be repeated (continued readout)
 		// The logic here ensures that do_repeat is definitely high when triggering goes high.
-		if ((triggering || trigger_i || force_trigger_sysclk) && trigger_will_be_done && (dual_bank_mode && !dual_bank_trigger_complete))
+		if ((triggering || ((trigger_i || force_trigger_sysclk)&&(!triggering)&&(!delayed_triggering))) && trigger_will_be_done && (dual_bank_mode && !dual_bank_trigger_complete))
 			do_repeat <= 1;
 		else
 			do_repeat <= 0;
 			
-		if ((delayed_triggering || trigger_i || force_trigger_sysclk) && delayed_trigger_will_be_done && (dual_bank_mode && !delayed_dual_bank_trigger_complete))
+		if ((delayed_triggering || ((trigger_i || force_trigger_sysclk)&&(!triggering)&&(!delayed_triggering))) && delayed_trigger_will_be_done && (dual_bank_mode && !delayed_dual_bank_trigger_complete))
 			delayed_do_repeat <= 1;
 		else
 			delayed_do_repeat <= 0;
@@ -378,7 +381,7 @@ module radiant_trigger_control_v2 #(parameter NUM_WR=4, parameter WR_DELAY=0, pa
     // The top bit flags if the trigger's actually complete (done through the repeat).
     // trigger_write goes high the cycle after triggering would go low,
     // so we need to catch do_repeat's state right then.
-	trigger_fifo u_fifo(.din({!trigger_will_repeat, use_old_trigger_address?last_trigger_address:trigger_address}),.dout({trigger_last_o, trigger_address_o}),.rd_clk(clk_i),.wr_clk(sys_clk_i),
+	trigger_fifo u_fifo(.din({!delayed_trigger_will_repeat, use_old_trigger_address?last_trigger_address:trigger_address}),.dout({trigger_last_o, trigger_address_o}),.rd_clk(clk_i),.wr_clk(sys_clk_i),
 							  .wr_en(trigger_write),.rd_en(trigger_rd_i),.empty(trigger_empty_o),
 							  .rst(rst_i));
 
